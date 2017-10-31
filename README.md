@@ -1,2 +1,2 @@
 # NorskPtarmigan
-Analysis of the Willow Ptarmingan dataset over Norway
+Analysis of the Willow Ptarmigan dataset over Norway
