@@ -21,7 +21,11 @@ Run the script to access the database and retreive the data
 
 ```{r, warning=FALSE, cache=TRUE}
 
-source('C:/Users/diana.bowler/OneDrive - NINA/Alpine/Ptarmigan/Scripts/HFP-connection_DB.R')
+myOmradeNavn = NULL
+myFylkesnavn = NULL
+plot = T
+
+source("/data/home/diana.bowler/HFP-connection_DB.R")
 
 ```
 
@@ -118,6 +122,7 @@ table(mydata$month)
 table(mydata$FK_ArtId)
 
 table(mydata$FK_OppfluktId)
+
 
 ```
 

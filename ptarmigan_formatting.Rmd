@@ -135,7 +135,7 @@ ggplot(dataSubsetSummmary)+
 #(2) Or rather subset by well-sampled lines
 
 ```{r}
-library(tidyverse)
+library(magrittr)
 
 tempDF<-dataSubset %>%
     group_by(LinjeID) %>%
@@ -213,9 +213,9 @@ bugs.data <- list(W = 200,
             Time = log(dataSubset$timeSince+1),
             zeros.dist = rep(0,nrow(dataSubset)))
 
-source('C:/Users/diana.bowler/OneDrive - NINA/methods/models/bugsFunctions.R')
+source('/data/home/diana.bowler/bugsFunctions.R')
 
-setwd("C:/Users/diana.bowler/OneDrive - NINA/Alpine/Ptarmigan/Scripts")
+setwd('/data/home/diana.bowler/outputs')
 
 params <- c("b.group.size","b.time","esw")
   
