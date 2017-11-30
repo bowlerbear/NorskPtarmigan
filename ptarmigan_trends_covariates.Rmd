@@ -1,0 +1,607 @@
+---
+title: "combined_model_covariates"
+author: "Diana Bowler"
+date: "14 november 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+Import the data - check the subsetting is as wanted
+
+```{r}
+library(knitr)
+knit("ptarmigan_formatting.Rmd")
+
+```
+
+Get covariate data at the fylk level
+
+```{r}
+
+setwd("C:/Users/diana.bowler/OneDrive - NINA/Alpine/Ptarmigan/Scripts")
+library(plyr)
+
+load("mammalsFylk.RData")
+head(mammalsFylk)
+names(mammalsFylk)<-c("Fylkesnavn","Year","value")
+
+load("springData.RData")
+springData<-ddply(springData,.(Fylkesnavn,Year),summarise,value=median(value,na.rm=T))
+head(springData)
+
+load("autumnData.RData")
+autumnData<-ddply(autumnData,.(Fylkesnavn,Year),summarise,value=median(value,na.rm=T))
+head(autumnData)
+
+#last week in June data
+cdir<-"R:/Prosjekter/AlpineBirds/LagopusPopulationMonitoring"
+climdata <- read.delim(paste(cdir,"Klimadata.txt",sep="/"))
+climdata <- climdata[,-1]
+climdata$Fylkesnavn<-allData$Fylkesnavn[match(climdata$site,allData$LinjeID)]
+juneData<-ddply(climdata,.(Fylkesnavn,year),summarise,value=median(snitt_temp,na.rm=T))
+names(juneData)<-c("Fylkesnavn","Year","value")
+
+```
+
+Get data
+
+```{r, warning=FALSE}
+
+detach("package:plyr")
+
+#subset
+allData<-subset(allData,Year>2006&Year<2017)
+
+#get number of individuals
+nuIndivs <-
+  allData%>%
+  group_by(Year,LinjeID,Fylkesnavn,Kommunenavn,OmradeNavn,OmradeID,Rapporteringsniva, add = T) %>%
+  summarise(nuAdults = sum(Adults), 
+            nuJuvs = sum(AntallKylling),
+            nuTotal = sum(totalIndiv),
+            maxTransectLength=max(LengdeTaksert,na.rm=T))
+
+nuIndivs$iYear <- nuIndivs$Year - min(nuIndivs$Year) + 1
+summary(nuIndivs)
+
+library(reshape2)
+nuIndivs$Line<-paste(nuIndivs$Fylkesnavn,nuIndivs$Rapporteringsniva,sep="_")
+nuIndivs$Line<-paste(nuIndivs$Line,nuIndivs$OmradeID,sep="#")
+nuIndivs$Line<-paste(nuIndivs$Line,nuIndivs$LinjeID,sep="-")
+my.n <- acast(nuIndivs,Line~Year,value.var="nuTotal")
+
+#check all have at least one positive and non-zero value
+summary(as.numeric(apply(my.n,1,max,na.rm=T)))
+
+#get transect length data
+allData$Line<-paste(allData$Fylkesnavn,allData$Rapporteringsniva,sep="_")
+allData$Line<-paste(allData$Line,allData$OmradeID,sep="#")
+allData$Line<-paste(allData$Line,allData$LinjeID,sep="-")
+transectLengths <- acast(allData,Line~Year,value.var="LengdeTaksert",fun=max,na.rm=T)
+transectLengths[is.na(my.n)]<-0
+#there are some -1 transect lengths
+transectLengths[transectLengths==-1]<-0
+#Finnmark_Indre Finnmark-882/3
+my.n[transectLengths==0]<-NA
+
+#Nordland__Indre Troms             
+#Troms__Indre Troms 
+
+#order site info
+siteInfo<-data.frame(Line=row.names(my.n))
+siteInfo$Fylkesnavn<-as.numeric(factor(sapply(siteInfo$Line,function(x)strsplit(as.character(x),"_")[[1]][1])))
+siteInfo$Rapporteringsniva<-as.numeric(factor(sapply(siteInfo$Line,function(x)strsplit(as.character(x),"-")[[1]][1])))
+siteInfo$LinjeID<-as.numeric(factor(siteInfo$Line))
+
+#Create a data frame with only detection
+allDetections<-subset(allData,totalIndiv>0&!is.na(totalIndiv))
+allDetections<-arrange(allDetections,LinjeID)
+head(allDetections)
+
+#choose my covariate
+myCovariate = juneData
+myCovariate = subset(myCovariate,Fylkesnavn%in%nuIndivs$Fylkesnavn&Year%in%nuIndivs$Year)
+covariateMatrix = my.n
+rowNames<-as.character(sapply(row.names(my.n),function(x)strsplit(as.character(x),"_")[[1]][1]))
+for(i in 1:nrow(covariateMatrix)){
+  for(j in 1:ncol(covariateMatrix)){
+    covariateMatrix[i,j] = myCovariate$value[myCovariate$Fylkesnavn==rowNames[i]&
+                                              myCovariate$Year==dimnames(covariateMatrix)[[2]][j]]
+  }
+}
+
+#Organise fur bugs
+bugs.data <- list(#For the state model
+                  n.Lines = length(unique(nuIndivs$LinjeID)),
+                  n.Years = length(unique(nuIndivs$Year)),
+                  n.Sites = length(unique(nuIndivs$Fylkesnavn)),
+                  n.Sites2 = length(unique(siteInfo$Rapporteringsniva)),
+                  line = siteInfo$LinjeID,
+                  site = siteInfo$Fylkesnavn,
+                  site2 = siteInfo$Rapporteringsniva, 
+                  year = (1:length(unique(nuIndivs$Year))),
+                  covariate = covariateMatrix,
+                  NuIndivs = my.n,
+                  TransectLength = transectLengths,
+                  #For the distance model
+                  W = 200,
+                  N = nrow(allDetections),
+                  y = allDetections$LinjeAvstand,
+                  detectionGroupSize = log(allDetections$totalIndiv+1),
+                  GroupSize = allDetections$totalIndiv,
+                  zeros.dist = rep(0,nrow(allDetections)),
+                  detectionLine =as.numeric(factor(allDetections$LinjeID)),
+                  detectionYear = as.numeric(factor(allDetections$Year)))
+
+#year one priors
+bugs.data$year1<-as.numeric(apply(my.n,1,function(x)ifelse(!is.na(x[1]),x[1],max(x,na.rm=T))))
+bugs.data$year1[bugs.data$year1==0]<-1
+
+#quadriatic spatial effect
+bugs.data$spatialMatrix2 <- bugs.data$spatialMatrix^2
+
+```
+
+Plot the data
+```{r}
+
+allData$Covariate<-myCovariate$value[match(interaction(allData$Year,allData$Fylkesnavn),
+                                           interaction(myCovariate$Year,myCovariate$Fylkesnavn))]
+
+ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
+  geom_point(aes(colour=factor(Fylkesnavn)))+
+  geom_line(aes(colour=factor(Fylkesnavn)))+
+  theme(legend.position="none")
+
+```
+
+
+
+Run code for basic model
+
+```{r}
+
+source('C:/Users/diana.bowler/OneDrive - NINA/methods/models/bugsFunctions.R')
+
+setwd("C:/Users/diana.bowler/OneDrive - NINA/Alpine/Ptarmigan/Scripts")
+
+inits <- function(){list(trend = dunif(-2,0))}
+
+params <- c("beta.covariate","Density")
+
+out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariate.txt", n.thin=nt,
+               n.chains=3, n.burnin=100,n.iter=500, parallel = TRUE)
+```
+```{r}
+
+print(out1,3)
+
+```
+
+#Separing the spatial and temporal elements
+
+```{r results="asis"}
+
+#split into spatial and temporal anomalies
+spatialMatrix<-as.numeric(rowMeans(covariateMatrix))
+temporalMatrix<-as.numeric(colMeans(covariateMatrix))
+
+bugs.data$temporalMatrix<-apply(covariateMatrix,2,function(x)x-spatialMatrix)
+bugs.data$spatialMatrix<-t(apply(covariateMatrix,1,function(x)x-temporalMatrix))
+
+summary(spatialMatrix)
+summary(temporalMatrix)
+
+#plot the data
+
+#temporal
+tMmelted<-melt(bugs.data$temporalMatrix)
+allData$CovariateT<-tMmelted$value[match(interaction(allData$Year,allData$Line),
+                                           interaction(tMmelted$X2,tMmelted$X1))]
+
+ggplot(allData,aes(x=CovariateT,y=totalIndiv,group=LinjeID))+
+  geom_point(aes(colour=factor(Fylkesnavn)))+
+  geom_line(aes(colour=factor(Fylkesnavn)))+
+  theme(legend.position="none")+
+  ggtitle("temporal")
+
+
+#spatial
+tMmelted<-melt(bugs.data$spatialMatrix)
+allData$CovariateS<-tMmelted$value[match(interaction(allData$Year,allData$Line),
+                                           interaction(tMmelted$X2,tMmelted$X1))]
+
+ggplot(allData,aes(x=CovariateS,y=totalIndiv,group=LinjeID))+
+  geom_point(aes(colour=factor(Fylkesnavn)))+
+  geom_line(aes(colour=factor(Fylkesnavn)))+
+  theme(legend.position="none")+
+  ggtitle("spatial")
+
+
+```
+
+
+
+#Run the model (without ar1 term)
+
+```{r}
+
+params <- c("beta.covariateS","beta.covariateT","int.d","Density")
+
+out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS.txt", n.thin=nt,
+               n.chains=3, n.burnin=100,n.iter=500)
+```
+
+
+```{r}
+
+print(out1,3)
+
+```
+
+#Run the model with the ar1 term
+
+```{r}
+
+params <- c("beta.auto","beta.covariateS","beta.covariateS2","beta.covariateT","int.d","Density","predGroupSize")
+
+out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS_ar1.txt", n.thin=nt,
+               n.chains=3, n.burnin=500,n.iter=2000,parallel = T)
+
+```
+
+
+```{r}
+
+print(out1,3)
+
+```
+
+Plot predicted group sizes
+
+```{r}
+
+groupsizeDF<-melt(out1$mean$predGroupSize)
+names(groupsizeDF)<-c("site","year","groupsize")
+qplot(year,groupsize,data=groupsizeDF,group=site,colour=site,geom=c("line","point"))
+
+```
+
+
+
+#Covariates at the level of the omrade
+
+```{r}
+
+setwd("C:/Users/diana.bowler/OneDrive - NINA/Alpine/Ptarmigan/Scripts")
+library(plyr)
+
+load("springData.RData")
+springData<-ddply(springData,.(OmradeID,Year),summarise,value=median(value,na.rm=T))
+head(springData)
+
+load("autumnData.RData")
+autumnData<-ddply(autumnData,.(OmradeID,Year),summarise,value=median(value,na.rm=T))
+head(autumnData)
+
+#last week in June data
+cdir<-"R:/Prosjekter/AlpineBirds/LagopusPopulationMonitoring"
+climdata <- read.delim(paste(cdir,"Klimadata.txt",sep="/"))
+climdata <- climdata[,-1]
+climdata$OmradeID<-allData$OmradeID[match(climdata$site,allData$LinjeID)]
+climdata<-subset(climdata,!is.na(OmradeID))
+juneData<-ddply(climdata,.(OmradeID,year),summarise,value=median(snitt_temp,na.rm=T))
+names(juneData)<-c("OmradeID","Year","value")
+head(juneData)
+
+```
+
+
+```{r}
+
+#choose my covariate
+myCovariate = juneData
+myCovariate = subset(myCovariate,OmradeID%in%nuIndivs$OmradeID&Year%in%nuIndivs$Year)
+covariateMatrix = my.n
+rowNames<-as.character(sapply(row.names(my.n),function(x)strsplit(as.character(x),"#")[[1]][2]))
+rowNames<-as.character(sapply(rowNames,function(x)strsplit(as.character(x),"-")[[1]][1]))
+
+for(i in 1:nrow(covariateMatrix)){
+  for(j in 1:ncol(covariateMatrix)){
+    covariateMatrix[i,j] = myCovariate$value[myCovariate$OmradeID==rowNames[i]&
+                                              myCovariate$Year==dimnames(covariateMatrix)[[2]][j]]
+  }
+}
+
+#split into spatial and temporal anomalies
+spatialMatrix<-as.numeric(rowMeans(covariateMatrix))
+temporalMatrix<-as.numeric(colMeans(covariateMatrix))
+
+#make a DF
+temporalDF<-data.frame(Year=dimnames(my.n)[[2]],value=temporalMatrix)
+spatialDF<-data.frame(OmradeID=rowNames,value=spatialMatrix)
+
+#look at summaries
+summary(spatialMatrix)
+summary(temporalMatrix)
+
+#plot the data
+
+#temporal
+tMmelted<-melt(bugs.data$temporalMatrix)
+allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
+                                           interaction(tMmelted$X2,tMmelted$X1))]
+
+ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
+  geom_point(aes(colour=factor(Fylkesnavn)))+
+  geom_line(aes(colour=factor(Fylkesnavn)))+
+  theme(legend.position="none")+
+  ggtitle("temporal")
+
+#spatial
+tMmelted<-melt(bugs.data$spatialMatrix)
+allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
+                                           interaction(tMmelted$X2,tMmelted$X1))]
+
+ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
+  geom_point(aes(colour=factor(Fylkesnavn)))+
+  geom_line(aes(colour=factor(Fylkesnavn)))+
+  theme(legend.position="none")+
+  ggtitle("spatial")
+
+```
+
+
+#Fit a model with ar1 term
+```{r}
+
+#of make anomalies
+bugs.data$temporalMatrix <- apply(covariateMatrix,2,function(x)x-spatialMatrix)
+bugs.data$spatialMatrix <- t(apply(covariateMatrix,1,function(x)x-temporalMatrix))
+bugs.data$spatialMatrix2 <- bugs.data$spatialMatrix^2#also add a polynomial term for the spatial variation
+
+#year one priors
+bugs.data$year1<-as.numeric(apply(my.n,1,function(x)ifelse(!is.na(x[1]),x[1],max(x,na.rm=T))))
+bugs.data$year1[bugs.data$year1==0]<-1
+
+params <- c("int.d","beta.auto","beta.covariateS","beta.covariateT","beta.covariateS2","pred.Time","pred.Space")
+
+out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS_ar1.txt", n.thin=nt,
+               n.chains=3, n.burnin=2000,n.iter=10000,parallel = T)
+
+```
+
+Print the output
+
+```{r}
+print(out1,2)
+
+```
+
+
+#Plot predicted effects
+
+```{r}
+#effect of space
+
+library(reshape2)
+dataspatialMelt<-melt(out1$mean$pred.Space)
+dataspatialMelt2<-melt(out1$q2.5$pred.Space)
+dataspatialMelt3<-melt(out1$q97.5$pred.Space)
+spatialMatrixMelt<-melt(bugs.data$spatialMatrix)
+dataspatialMelt$juneTemp<-spatialMatrixMelt$value
+dataspatialMelt$lower<-dataspatialMelt2$value
+dataspatialMelt$upper<-dataspatialMelt3$value
+
+ggplot(dataspatialMelt)+geom_point(aes(x=juneTemp,y=value))+geom_ribbon(aes(x=juneTemp,ymin=lower,ymax=upper),alpha=0.5)+
+  theme_classic()+ggtitle("Spatial variation")
+
+#effect of time
+library(reshape2)
+dataspatialMelt<-melt(out1$mean$pred.Time)
+dataspatialMelt2<-melt(out1$q2.5$pred.Time)
+dataspatialMelt3<-melt(out1$q97.5$pred.Time)
+spatialMatrixMelt<-melt(bugs.data$temporalMatrix)
+dataspatialMelt$juneTemp<-spatialMatrixMelt$value
+dataspatialMelt$lower<-dataspatialMelt2$value
+dataspatialMelt$upper<-dataspatialMelt3$value
+
+ggplot(dataspatialMelt)+geom_point(aes(x=juneTemp,y=value))+geom_ribbon(aes(x=juneTemp,ymin=lower,ymax=upper),alpha=0.5)+
+  theme_classic()+ggtitle("Temporal variation")
+
+```
+
+
+Using just the averages of spatial and temporal patterns
+
+```{r results='asis'}
+#Plot
+
+#spatial
+allData$Covariate<-spatialDF$value[match(allData$OmradeID,spatialDF$OmradeID)]
+
+ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
+  geom_point(aes(colour=factor(Fylkesnavn)))+
+  theme(legend.position="none")+
+  ggtitle("spatial")
+
+#temporal
+allData$Covariate<-temporalDF$value[match(allData$Year,temporalDF$Year)]
+
+ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
+  geom_point(aes(colour=factor(Fylkesnavn)))+
+  theme(legend.position="none")+
+  ggtitle("temporal")
+
+```
+
+#same analysis with spring onset
+
+```{r}
+
+#choose my covariate
+myCovariate = springData
+myCovariate = subset(myCovariate,OmradeID%in%nuIndivs$OmradeID&Year%in%nuIndivs$Year)
+covariateMatrix = my.n
+rowNames<-as.character(sapply(row.names(my.n),function(x)strsplit(as.character(x),"#")[[1]][2]))
+rowNames<-as.character(sapply(rowNames,function(x)strsplit(as.character(x),"-")[[1]][1]))
+
+for(i in 1:nrow(covariateMatrix)){
+  for(j in 1:ncol(covariateMatrix)){
+    covariateMatrix[i,j] = myCovariate$value[myCovariate$OmradeID==rowNames[i]&
+                                              myCovariate$Year==dimnames(covariateMatrix)[[2]][j]]
+  }
+}
+
+#split into spatial and temporal anomalies
+spatialMatrix<-as.numeric(rowMeans(covariateMatrix))
+temporalMatrix<-as.numeric(colMeans(covariateMatrix))
+
+#make a DF
+temporalDF<-data.frame(Year=dimnames(my.n)[[2]],value=temporalMatrix)
+spatialDF<-data.frame(OmradeID=rowNames,value=spatialMatrix)
+
+#look at summaries
+summary(spatialMatrix)
+summary(temporalMatrix)
+
+#plot the data
+
+#temporal
+tMmelted<-melt(bugs.data$temporalMatrix)
+allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
+                                           interaction(tMmelted$X2,tMmelted$X1))]
+
+ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
+  geom_point(aes(colour=factor(Fylkesnavn)))+
+  geom_line(aes(colour=factor(Fylkesnavn)))+
+  theme(legend.position="none")+
+  ggtitle("temporal")
+
+#spatial
+tMmelted<-melt(bugs.data$spatialMatrix)
+allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
+                                           interaction(tMmelted$X2,tMmelted$X1))]
+
+ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
+  geom_point(aes(colour=factor(Fylkesnavn)))+
+  geom_line(aes(colour=factor(Fylkesnavn)))+
+  theme(legend.position="none")+
+  ggtitle("spatial")
+
+
+```
+
+Using just the averages of spatial and temporal patterns
+
+```{r results='asis'}
+#Plot
+
+#spatial
+allData$Covariate<-spatialDF$value[match(allData$OmradeID,spatialDF$OmradeID)]
+
+ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
+  geom_point(aes(colour=factor(Fylkesnavn)))+
+  theme(legend.position="none")+
+  ggtitle("spatial")
+
+#temporal
+allData$Covariate<-temporalDF$value[match(allData$Year,temporalDF$Year)]
+
+ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
+  geom_point(aes(colour=factor(Fylkesnavn)))+
+  theme(legend.position="none")+
+  ggtitle("temporal")
+
+```
+
+#Fit a model with ar1 term
+```{r}
+
+#of make anomalies
+bugs.data$temporalMatrix <- apply(covariateMatrix,2,function(x)x-spatialMatrix)
+bugs.data$spatialMatrix <- t(apply(covariateMatrix,1,function(x)x-temporalMatrix))
+bugs.data$spatialMatrix2 <- bugs.data$spatialMatrix^2#also add a polynomial term for the spatial variation
+
+#year one priors
+bugs.data$year1<-as.numeric(apply(my.n,1,function(x)ifelse(!is.na(x[1]),x[1],max(x,na.rm=T))))
+bugs.data$year1[bugs.data$year1==0]<-1
+
+params <- c("beta.auto","beta.covariateS","beta.covariateT","pred.Time","pred.Space")
+
+out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS_ar1.txt", n.thin=nt,
+               n.chains=3, n.burnin=500,n.iter=2000,parallel = T)
+
+```
+
+Print the output
+
+```{r}
+print(out1,2)
+
+```
+
+#plotting the results
+
+```{r}
+
+#effect of space
+library(reshape2)
+dataspatialMelt<-melt(out1$mean$pred.Space)
+dataspatialMelt2<-melt(out1$q2.5$pred.Space)
+dataspatialMelt3<-melt(out1$q97.5$pred.Space)
+spatialMatrixMelt<-melt(bugs.data$spatialMatrix)
+dataspatialMelt$springOnset<-spatialMatrixMelt$value
+dataspatialMelt$lower<-dataspatialMelt2$value
+dataspatialMelt$upper<-dataspatialMelt3$value
+
+ggplot(dataspatialMelt)+geom_point(aes(x=springOnset,y=value))+geom_ribbon(aes(x=springOnset,ymin=lower,ymax=upper),alpha=0.5)+
+  theme_classic()+ggtitle("Spatial variation")
+
+#effect of time
+library(reshape2)
+dataspatialMelt<-melt(out1$mean$pred.Time)
+dataspatialMelt2<-melt(out1$q2.5$pred.Time)
+dataspatialMelt3<-melt(out1$q97.5$pred.Time)
+spatialMatrixMelt<-melt(bugs.data$temporalMatrix)
+dataspatialMelt$springOnset<-spatialMatrixMelt$value
+dataspatialMelt$lower<-dataspatialMelt2$value
+dataspatialMelt$upper<-dataspatialMelt3$value
+
+ggplot(dataspatialMelt)+geom_point(aes(x=springOnset,y=value))+geom_ribbon(aes(x=springOnset,ymin=lower,ymax=upper),alpha=0.5)+
+  theme_classic()+ggtitle("Temporal variation")
+
+
+```
+
+
+
+```{r}
+
+glm1<-glm(totalIndiv~SettSmagnager,data=allData)
+allDataSum<-ddply(allData,.(Year,Rapporteringsniva),summarise,propMammals=mean(SettSmagnager,na.rm=T),
+                  totalIndiv=sum(totalIndiv,na.rm=T))
+
+qplot(logit(propMammals),totalIndiv,data=allDataSum)+theme_classic()+stat_smooth(method="lm")
+
+```
+
+
+Get the habitat data
+
+```{r}
+
+cdir<-"R:/Prosjekter/AlpineBirds/LagopusPopulationMonitoring"
+habitatdata <- read.delim(paste(cdir,"Veg_cover.csv",sep="/"))
+
+#exclude habitat data if mostly NAs
+
+#get proportion of area that is forest for each plot
+
+
+```
