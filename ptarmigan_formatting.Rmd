@@ -1,0 +1,308 @@
+---
+title: "ptarmigan_formatting"
+author: "Diana Bowler"
+date: "2 november 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+Decide whether we want to subset the data and whether we want to plot the lines/observations
+
+```{r}
+
+#myOmradeNavn = "Finnemarka"
+#myFylkesnavn = c("Finnmark","Troms")
+myOmradeNavn = NULL
+myFylkesnavn = NULL
+plot=T
+
+```
+
+First get the raw data
+
+```{r cache=TRUE}
+
+library(knitr)
+
+knit("ptarmigan_readin.Rmd")
+
+```
+
+
+#working out what distance for the human observations to include
+```{r}
+
+mydataTemp<-subset(mydata,month%in%c(7,8,9))#anysurvey
+
+#subset
+dogObs<-subset(mydataTemp,FK_ArtId==1&FK_OppfluktId%in%c(1,2) & !is.na(LinjeAvstand) & LinjeAvstand<500)
+humanObs<-subset(mydataTemp,FK_ArtId==1&FK_OppfluktId%in%c(3,4)& !is.na(LinjeAvstand) & LinjeAvstand<500)
+
+#plotting
+hist(dogObs$LinjeAvstand)
+hist(humanObs$LinjeAvstand)
+
+#Subset the human distances to have a close to half-normal distribution of distances
+allDistances<-rbind(dogObs,subset(humanObs,LinjeAvstand<10))
+
+#multiple the dataset by -1 and create a mirror
+myDistances<-c(abs(allDistances$LinjeAvstand),(abs(allDistances$LinjeAvstand)*-1))
+hist(myDistances)
+
+#test a distribution is the same as a norma, one
+ks.test(myDistances,pnorm)
+
+hist(allDistances$LinjeAvstand)
+
+```
+
+
+#Subset the data for the moment to willow ptarmigan, found by a dog, in July, August or September
+
+```{r}
+
+mydataTemp<-subset(mydata,month%in%c(7,8,9))#anysurvey
+dataSubset1<-subset(mydataTemp,FK_ArtId==1 & FK_OppfluktId%in%c(1,2))#willow partmigan seen and any data flushed by a dog
+dataSubset2<-subset(mydataTemp,FK_ArtId==1 & FK_OppfluktId%in%c(3,4) & abs(LinjeAvstand)<10)#willow partmigan seen and any data flushed by a dog
+dataSubset<- rbind(dataSubset1,dataSubset2)
+dataSubset$LinjeAvstand <- abs(dataSubset$LinjeAvstand)#get rid of negative values
+detach("package:plyr")
+
+```
+
+
+Selection decision:
+
+#(1)Focus on the sites recorded since 2007 onwards and also remove Nordland
+
+```{r}
+#get list of lines surveys 
+
+library(tidyverse)
+
+tempDF<-dataSubset %>%
+  filter(Year==2007) %>%
+    group_by(OmradeNavn) %>%
+      summarise(n=length(Adults))
+tempDF
+
+dataSubsetF<-dataSubset %>%
+  filter(Fylkesnavn %in% c("Finnmark","Troms"))
+
+```
+
+This dataset just contains data from: 
+Finnmark             
+Troms 
+
+#Plot the data again
+```{r,results='asis'}
+
+#get total birds per transect
+dataSubsetSummmary <- dataSubsetF %>%
+    group_by(Latitude,Longitude,Year) %>%
+      summarise(totalAdults = sum(Adults))
+
+
+ggplot(subset(dataSubsetSummmary, Latitude > 64 & Latitude < 75))+
+  geom_point(aes(x=Longitude,y=Latitude,colour=log(totalAdults)))+
+  facet_wrap(~Year)+
+  scale_colour_gradient(low="blue",high="red")
+
+```
+
+#Lets look at a time series for each line
+
+```{r}
+
+dataSubsetSummmary <- 
+  dataSubsetF %>%
+    group_by(LinjeID,Year,Kommunenavn) %>%
+      summarise(totalAdults = sum(Adults))
+
+ggplot(dataSubsetSummmary)+
+  geom_line(aes(x=Year,y=totalAdults,colour=factor(LinjeID)))+
+  facet_wrap(~Kommunenavn)+
+  theme(legend.position = "none")
+
+```
+
+#(2) Or rather subset by well-sampled lines
+
+```{r}
+library(tidyverse)
+
+tempDF<-dataSubset %>%
+    group_by(LinjeID) %>%
+      summarise(n=length(unique(Year[!is.na(totalIndiv)])))
+tempDF
+
+dataSubset<-dataSubset %>%
+  filter(LinjeID %in% tempDF$LinjeID[tempDF$n>5])#Lines sampled in at least 5 years
+
+```
+
+
+#Plot the data again
+```{r results='asis'}
+
+#get total birds per transect
+dataSubsetSummmary <- dataSubset %>%
+    group_by(Latitude,Longitude,Year) %>%
+      summarise(totalAdults = sum(Adults))
+
+
+ggplot(subset(dataSubsetSummmary,Latitude>50 &Latitude<75))+
+  geom_point(aes(x=Longitude,y=Latitude,colour=log(totalAdults)))+
+  facet_wrap(~Year)+
+  scale_colour_gradient(low="blue",high="red")
+
+```
+
+#Lets look at a time series for each line
+
+```{r results='asis'}
+
+dataSubsetSummmary <- 
+  dataSubset %>%
+    group_by(LinjeID,Year,Rapporteringsniva) %>%
+      summarise(totalAdults = sum(Adults))
+
+ggplot(subset(dataSubsetSummmary,Year>2006))+
+  geom_line(aes(x=Year,y=totalAdults,colour=factor(LinjeID)))+
+  facet_wrap(~Rapporteringsniva)+
+  theme(legend.position = "none")+
+  scale_y_log10()
+
+```
+
+#Lets fit a distance model again
+
+```{r cache = TRUE}
+
+
+#truncate distances at 200
+dataSubset = dataSubset %>%
+        filter(LinjeAvstand<200,!is.na(LinjeAvstand))
+
+dataSubset$LinjeAvstand <- abs(dataSubset$LinjeAvstand)
+
+nrow(dataSubset)#4678
+
+#bound extremes of timeSince
+
+dataQuantile <- quantile(abs(dataSubset$timeSince),0.95,na.rm=T)#360 - 6 hours..., probably longer than this is a new survey???
+dataSubset$timeSince<-ifelse(abs(dataSubset$timeSince)>dataQuantile, median(abs(dataSubset$timeSince)), abs(dataSubset$timeSince))
+
+#examine the group sizes
+dataSubset$AntallUkjent[dataSubset$AntallUkjent==210]<-0
+dataSubset$totalIndiv<-dataSubset$Adults+dataSubset$AntallKylling+dataSubset$AntallUkjent
+hist(dataSubset$totalIndiv)
+
+#organise data for a distance model
+bugs.data <- list(W = 200,
+            N = nrow(dataSubset),
+            y = dataSubset$LinjeAvstand,
+            GroupSize = log(dataSubset$totalIndiv+1),
+            #GroupSize2 = (log(dataSubset$totalIndiv+1))^2,
+            Time = log(dataSubset$timeSince+1),
+            zeros.dist = rep(0,nrow(dataSubset)))
+
+source('C:/Users/diana.bowler/OneDrive - NINA/methods/models/bugsFunctions.R')
+
+setwd("C:/Users/diana.bowler/OneDrive - NINA/Alpine/Ptarmigan/Scripts")
+
+params <- c("b.group.size","b.time","esw")
+  
+#inits <- function(){list(b.df.0 = runif(1,2,5), 
+#                         B.gs.0 = runif(1,0.2,3),
+#                         B.n.0 = runif(1,0.5,5))}
+  
+#out1 <- jags(bugs.data, inits=NULL, params, "ptarmigan_distance_model.txt", n.thin=nt,
+#               n.chains=nc, n.burnin=nb,n.iter=ni)
+
+```
+
+#Look at summary ouput from this model
+
+```{r}
+#out1$summary[grepl("esw",row.names(out1$summary)),]
+#summary(out1$mean$esw)
+
+#print(out1,3)
+#Size effect but not time effect
+
+```
+
+#Put the zeros and NAs in the dataset
+
+```{r}
+library(plyr)
+
+#First insert the 0s into the datasheet
+lineInfo <- unique(mydataTemp[,c("Year","LinjeID","Fylkesnavn","Kommunenavn","OmradeNavn","OmradeID","Rapporteringsniva","TakseringID","Date","Year","month","Time","startTime","timeSince","LengdeTaksert")])
+#use Rapport instead of Fylk/Kommune??
+allData <- merge(lineInfo,dataSubset,all.x=T,by=c("Year","LinjeID","Fylkesnavn","Kommunenavn","OmradeNavn","OmradeID","Rapporteringsniva","TakseringID","Date","Year","month","Time","startTime","timeSince","LengdeTaksert"))
+#allData[,c("AntallHann","AntallHunn","AntallKylling","AntallUkjent","totalIndiv","Adults")])<-0#why wont work??
+allData$AntallHann[is.na(allData$AntallHann)]<-0
+allData$AntallHunn[is.na(allData$AntallHunn)]<-0
+allData$AntallKylling[is.na(allData$AntallKylling)]<-0
+allData$AntallUkjent[is.na(allData$AntallUkjent)]<-0
+allData$totalIndiv[is.na(allData$totalIndiv)]<-0
+allData$Adults[is.na(allData$Adults)]<-0
+
+#subset(lineInfo,LinjeID=="816"&Year==2001) - missing transect length data
+#we are missing many other transect lengths...
+
+#now add NAs when a site was not visited in a year
+mydataWillow<-subset(allData,totalIndiv>0)
+lineInfo <- unique(mydataWillow[,c("LinjeID","Fylkesnavn","Kommunenavn","OmradeNavn","OmradeID","Rapporteringsniva")])
+potentialSurveys <- ldply(unique(mydataWillow$Year),function(x)cbind(Year=x,lineInfo))
+allData <- merge(potentialSurveys,allData,by=c("Year","LinjeID","Fylkesnavn","Kommunenavn","OmradeNavn","OmradeID","Rapporteringsniva"),all.x=T)
+
+#now restrict to lines in which a willow ptarmigan was seen at least once
+sumStats<-ddply(allData,.(LinjeID),summarise,nuObs=sum(totalIndiv,na.rm=T))
+allData <- subset(allData,LinjeID%in%sumStats$LinjeID[sumStats$nuObs>0])
+
+#trim white space
+allData$Fylkesnavn<-trim(as.character(allData$Fylkesnavn))
+
+summary(allData$totalIndiv)
+
+```
+```{r}
+
+#Explore the spatial structure
+
+spatialCluster<-unique(allData[,c("LinjeID","Fylkesnavn","Kommunenavn","OmradeNavn","Rapporteringsniva")])
+
+#first 3 are nested hierarchically
+
+#Rapporteringsniva is between OmradeNavn and Fylkesnavn??
+
+#Fylkesnavn should definately be included
+ddply(spatialCluster,.(Fylkesnavn),summarise,nuRap=length(unique(Rapporteringsniva)))
+#then Rapporteringsniva
+ddply(spatialCluster,.(Rapporteringsniva),summarise,nuOm=length(unique(OmradeNavn)))#most Rapporteringsniva have 1 o 2 OmradeNavn
+#then Kommune
+ddply(spatialCluster,.(Rapporteringsniva),summarise,nuKo=length(unique(Kommunenavn)))#most Rapporteringsniva have 1 or 2 Kommunenavn
+#or OmradeNavn and Kommune instead of Rapporteringsniva
+ddply(spatialCluster,.(OmradeNavn),summarise,nuKo=length(unique(Kommunenavn)))#most OmradeNavn have 1 Kommunenavn
+#check line numbers
+ddply(spatialCluster,.(OmradeNavn),summarise,nuLi=length(unique(LinjeID)))#most OmradeNavn have multiple lines
+ddply(spatialCluster,.(Rapporteringsniva),summarise,nuLi=length(unique(LinjeID)))#most Rapporteringsniva have multiple lines
+
+#choice is between Rapporteringsniva and OmradeNavn
+#either way  - dont use Kommune
+#either way - use Fylkesnavn
+
+length(unique(spatialCluster$Fylkesnavn))#10
+length(unique(spatialCluster$OmradeNavn))#81
+length(unique(spatialCluster$Rapporteringsniva))#40
+
+```

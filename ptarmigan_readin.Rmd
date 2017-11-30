@@ -1,0 +1,232 @@
+---
+title: "Ptarmigan analysis"
+author: "Diana Bowler"
+date: "16 oktober 2017"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+
+knitr::opts_chunk$set(echo = FALSE)
+
+```
+
+
+##Access the database and retreive the data
+
+Run the script to access the database and retreive the data
+
+```{r, warning=FALSE, cache=TRUE}
+
+source('C:/Users/diana.bowler/OneDrive - NINA/Alpine/Ptarmigan/Scripts/HFP-connection_DB.R')
+
+```
+
+
+##Explore the data
+
+The data frame is called mydata
+
+Remember this includes all species at the moment...
+
+```{r }
+
+str(mydata)
+
+```
+
+#Explore whether our calculated distances deviate from the reported distances
+
+```{r }
+
+#N_dist = Distance to line estimated form reported positions
+#avvik = Difference between reported "Linjeavstand" and the estimated N_dist
+
+summary(mydata$avvik)
+
+hist(mydata$avvik)
+
+hist(mydata$LinjeAvstand)
+
+hist(mydata$N_dist)
+
+#the LinjeAvstand actually look more reasonable...
+
+```
+
+
+#Explore the counts
+
+```{r }
+
+hist(mydata$AntallHann)     
+hist(mydata$AntallHunn)     
+hist(mydata$AntallKylling)   
+hist(mydata$AntallUkjent)  
+
+#There are some extreme Ukjent counts (probably when an observer has seen a flock)
+summary(mydata$AntallUkjent)
+mydata$AntallUkjent[mydata$AntallUkjent>100]<-0
+
+```
+
+
+#Clean the time data
+
+```{r}
+
+#Date
+library(lubridate)
+mydata$Date <- as.character(mydata$Dato)
+mydata$Date <- as.Date(mydata$Date,format="%Y-%m-%d")
+mydata$Year <- year(mydata$Date)
+mydata$month <- month(mydata$Date)
+unique(mydata$Year)
+unique(mydata$month)
+
+#Time
+mydata$StartKl <- as.character(mydata$StartKl)
+mydata$SluttKl <- as.character(mydata$SluttKl)
+mydata$Klokkeslett <- as.character(mydata$Klokkeslett)
+
+#get minutes since midnight from Klokkeslett
+clockS = function(t){
+  if(grepl(":",t)){
+  tsplit<-strsplit(t,":")
+  as.numeric(tsplit[[1]][1])*60+as.numeric(tsplit[[1]][2])
+  }
+  else
+    NA
+}
+mydata$Time <- sapply(mydata$Klokkeslett,clockS)
+mydata$startTime <- sapply(mydata$StartKl,clockS)
+mydata$timeSince <- mydata$Time - mydata$startTime
+table(mydata$month)
+
+#work out time since transect began being sampled
+
+#diference between start time and klock time
+
+```
+
+#Look at the species and flushing methods
+
+```{r}
+table(mydata$FK_ArtId)
+
+table(mydata$FK_OppfluktId)
+
+```
+
+#Look at the spatial clustering
+
+```{r}
+
+#Spatial variables
+
+#TakseringID (observer)
+
+#Linje_ID (line)
+
+#Fylkesnavn (county)
+
+#Kommunenavn (municipality)
+
+#Rapporteringsniva (reporting)
+
+#OmradeNavn (area)
+
+tempDF <- unique(
+  mydata[,c("TakseringID","LinjeID","Fylkesnavn","Kommunenavn","Rapporteringsniva","OmradeNavn")])
+tempDF <- data.frame(lapply(tempDF,factor))
+
+str(tempDF)
+
+#trim the white spaces
+library(gdata)
+mydata$Fylkesnavn<-trim(mydata$Fylkesnavn)
+mydata$Kommunenavn<-trim(mydata$Kommunenavn)
+
+```
+
+
+#Check all are aktiv?
+
+```{r}
+
+table(mydata$Aktiv)
+#yes
+
+#so there should be observations if it was not aktiv??
+tempDF <- subset(mydata,Aktiv==0)
+summary(tempDF$AntallHunn)
+
+#there are observations when it was not Aktiv???
+
+#no need to worry about this according to Erlend
+
+```
+
+
+#Estimate the effective strip width, on average
+
+```{r,results='asis'}
+
+#get the Distances
+myDistances<-mydata$LinjeAvstand[!is.na(mydata$LinjeAvstand)]
+myDistances<-abs(myDistances)
+summary(myDistances)
+
+#cut off 5% quantile
+truncDistance<-quantile(myDistances,0.95,na.rm=T)#233m
+myDistances[myDistances>200]<-NA
+myDistances<-myDistances[!is.na(myDistances)]
+
+library(Rdistance)
+fit <- F.dfunc.estim(myDistances, likelihood="halfnorm")#effective strip width is 118 m
+plot(fit)
+
+```
+
+
+#Example of the trends in abundance (just based on positive observations)
+
+```{r results='asis'}
+
+#plot maps for each year showing the abundance of adults
+
+mydata$Adults <- mydata$AntallHann + mydata$AntallHunn
+mydata$totalIndiv <- mydata$Adults + mydata$AntallUkjent + mydata$AntallKylling
+
+#get total birds per transect
+mydataSummmary <- 
+  mydata %>%
+    group_by(Latitude,Longitude,Year) %>%
+      summarise(totalAdults = sum(Adults))
+
+
+library(ggplot2)
+
+ggplot(subset(mydataSummmary, Latitude > 50 & Latitude < 75))+
+  geom_point(aes(x=Longitude,y=Latitude,colour=log(totalAdults)))+
+  facet_wrap(~Year)+
+  scale_colour_gradient(low="blue",high="red")
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
