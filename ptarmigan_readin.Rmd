@@ -123,6 +123,7 @@ table(mydata$FK_ArtId)
 
 table(mydata$FK_OppfluktId)
 
+
 ```
 
 #Look at the spatial clustering
