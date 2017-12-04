@@ -116,7 +116,6 @@ cat("
     site2.d.tau <- pow(site2.d.sd,-2)
     for(j in 1:n.Sites2){
       random.d.site2[j] ~ dnorm(0,site2.d.tau)
-
     }
     
     #random time effect
@@ -146,10 +145,7 @@ cat("
 
     #slopes
     beta.auto ~ dunif(-2,2)
-    beta.covariateS ~ dnorm(0,0.001)
-    #beta.covariateS2 ~ dnorm(0,0.001)
-    beta.covariateT ~ dnorm(0,0.001)
-    #beta.covariateA ~ dnorm(0,0.001)
+    harvest.effect ~ dnorm(0,0.001)
 
     #Observation model:
     for(j in 1:n.Lines){
@@ -158,6 +154,13 @@ cat("
         expNuIndivs[j,t] <- (Density[j,t] * (TransectLength[j,t]/1000 * predESW[j,t]/1000 * 2))
       }}
 
+    #downscale harvest bag each year
+    #predict fraction harvested at the level of the line
+    for(j in 1:n.Lines){
+      for(t in 1:n.Years){
+        propHarvest[j,t] <- harvestbag[j,t]/NuIndivs_Fylke[j,t]
+    }}
+
     #State model
     for(j in 1:n.Lines){
       for(t in 1:(n.Years-1)){
@@ -165,10 +168,8 @@ cat("
       #linear predictor on density
         log(Density[j,t+1]) <- int.d + 
                             beta.auto * log(Density[j,t]) +
-                            random.d.line[j] + 
-                            beta.covariateS * spatialMatrix[j,t+1] + 
-                            #beta.covariateS2 * spatialMatrix2[j,t+1] +
-                            beta.covariateT * temporalMatrix[j,t+1]
+                            harvest.effect * propHarvest [j,t] +
+                            random.d.line[j]
     }}
 
     #Priors on the first year of density
@@ -176,19 +177,7 @@ cat("
         Density[j,1] ~ dpois(year1[j])
     }
 
-    #get predicted temporal effects
-    for(j in 1:n.Lines){
-      for(t in 1:n.Years){
-        pred.Time[j,t] <- int.d + beta.covariateT * temporalMatrix[j,t]
-      }}
 
-
-    #get predicted spatial effects
-    for(j in 1:n.Lines){
-      for(t in 1:n.Years){
-        #pred.Space[j,t] <- int.d + beta.covariateS * spatialMatrix[j,t]+ beta.covariateS2 * spatialMatrix2[j,t]
-        pred.Space[j,t] <- int.d + beta.covariateS * spatialMatrix[j,t]
-    }}
 
     }
     ",fill=TRUE,file="combined_model_covariateTS_ar1.txt")
