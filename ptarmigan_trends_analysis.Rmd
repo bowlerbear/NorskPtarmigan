@@ -1,0 +1,234 @@
+---
+title: "ptarmigan_trends_analysis"
+author: "Diana Bowler"
+date: "2 november 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+Import the data - check the subsetting is as wanted
+
+```{r}
+library(knitr)
+knit("ptarmigan_formatting.Rmd")
+
+```
+
+
+Fitting the full model on total population - subset to 2007 onwards - including the distance model
+
+Organise the data
+
+```{r, warning=FALSE}
+
+detach("package:plyr")
+
+#subset
+allData<-subset(allData,Year>2006)
+
+#get number of individuals
+nuIndivs <-
+  allData%>%
+  group_by(Year,LinjeID,Fylkesnavn,Kommunenavn,OmradeNavn,Rapporteringsniva, add = T) %>%
+  summarise(nuAdults = sum(Adults), 
+            nuJuvs = sum(AntallKylling),
+            nuTotal = sum(totalIndiv),
+            maxTransectLength=max(LengdeTaksert,na.rm=T))
+
+nuIndivs$iYear <- nuIndivs$Year - min(nuIndivs$Year) + 1
+summary(nuIndivs)
+
+library(reshape2)
+nuIndivs$Line<-paste(nuIndivs$Fylkesnavn,nuIndivs$Rapporteringsniva,sep="_")
+nuIndivs$Line<-paste(nuIndivs$Line,nuIndivs$LinjeID,sep="-")
+my.n <- acast(nuIndivs,Line~Year,value.var="nuTotal")
+
+#get transect length data
+allData$Line<-paste(allData$Fylkesnavn,allData$Rapporteringsniva,sep="_")
+allData$Line<-paste(allData$Line,allData$LinjeID,sep="-")
+transectLengths <- acast(allData,Line~Year,value.var="LengdeTaksert",fun=max,na.rm=T)
+transectLengths[is.na(my.n)]<-0
+
+#order site info
+siteInfo<-data.frame(Line=row.names(my.n))
+siteInfo$Fylkesnavn<-as.numeric(as.factor(sapply(siteInfo$Line,function(x)strsplit(as.character(x),"_")[[1]][1])))
+siteInfo$Rapporteringsniva<-as.numeric(as.factor(sapply(siteInfo$Line,function(x)strsplit(as.character(x),"-")[[1]][1])))
+siteInfo$LinjeID<-as.numeric(as.factor(siteInfo$Line))
+
+#Create a data frame with only detection
+allDetections<-subset(allData,totalIndiv>0&!is.na(totalIndiv))
+allDetections<-arrange(allDetections,LinjeID)
+head(allDetections)
+
+#Organise fur bugs
+bugs.data <- list(#For the state model
+                  n.Lines = length(unique(nuIndivs$LinjeID)),
+                  n.Years = length(unique(nuIndivs$Year)),
+                  n.Sites = length(unique(nuIndivs$Fylkesnavn)),
+                  n.Sites2 = length(unique(nuIndivs$Rapporteringsniva)),
+                  line = siteInfo$LinjeID,
+                  site = siteInfo$Fylkesnavn,
+                  site2 = siteInfo$Rapporteringsniva, 
+                  year = (1:length(unique(nuIndivs$Year))),
+                  NuIndivs = my.n,
+                  TransectLength = transectLengths,
+                  #For the distance model
+                  W = 200,
+                  N = nrow(allDetections),
+                  y = allDetections$LinjeAvstand,
+                  detectionGroupSize = log(allDetections$totalIndiv+1),
+                  GroupSize = allDetections$totalIndiv,
+                  zeros.dist = rep(0,nrow(allDetections)),
+                  detectionLine =as.numeric(factor(allDetections$LinjeID)),
+                  detectionYear = as.numeric(factor(allDetections$Year)))
+
+```
+
+Plot the data
+
+```{r results='asis'}
+
+ggplot(nuIndivs,aes(x=Year,y=nuTotal,group=LinjeID))+
+  geom_point(aes(colour=LinjeID))+
+  geom_line(aes(colour=LinjeID))+
+  facet_wrap(~Fylkesnavn)+
+  theme(legend.position="none")
+
+```
+
+
+Run model in JAGS - with a long-term trend term
+
+```{r}
+
+source('C:/Users/diana.bowler/OneDrive - NINA/methods/models/bugsFunctions.R')
+
+setwd("C:/Users/diana.bowler/OneDrive - NINA/Alpine/Ptarmigan/Scripts")
+
+#inits <- function(){list(trend = dunif(-2,0))}
+
+params <- c("int","beta.auto","line.d.sd","site.d.sd","year.d.sd","totNumbers","predESW")
+
+#inits <- function(){list(b.df.0 = runif(1,2,5))}
+
+out1 <- jags(bugs.data, inits=NULL, params, "combined_model_ar1.txt", n.thin=nt,
+               n.chains=3, n.burnin=1000,n.iter=5000)
+```
+
+Print output
+
+```{r results='asis'}
+
+#library(ggmcmc)
+#ggs_traceplot(ggs(out1$samples)) 
+
+print(out1,2)
+
+```
+
+Fit the model without the trend term and just random year to year variation, that also varies by fylk
+
+Run model in JAGS
+
+```{r}
+
+source('C:/Users/diana.bowler/OneDrive - NINA/methods/models/bugsFunctions.R')
+
+setwd("C:/Users/diana.bowler/OneDrive - NINA/Alpine/Ptarmigan/Scripts")
+
+#inits <- function(){list(trend = dunif(-2,0))}
+
+params <- c("Density","meanNumbers","meanNumbers.Site")
+
+out1 <- jags(bugs.data, inits=NULL, params, "combined_model_noTrend.txt", n.thin=nt,
+               n.chains=3, n.burnin=2000,n.iter=10000)
+```
+
+
+```{r results='asis'}
+library(ggmcmc)
+#ggs_traceplot(ggs(out1$samples)) 
+
+print(out1,2)
+save(out1,file="out1_ptarmigan_noTrends.RData")
+
+```
+
+#Pull out and plot the density estimates
+
+```{r results='asis'}
+#Have they converged
+out1$Rhat$meanNumbers.Site
+densityDF<-data.frame(meanNu=out1$mean$Density)
+densityDF$Line<-1:nrow(densityDF)
+densityDF$Site<-bugs.data$site
+densityDF<-melt(densityDF,id=c("Line","Site"))
+levels(densityDF$variable)<-1:11
+densityDF$Year<-as.numeric(as.character(densityDF$variable))
+qplot(Year,log(value+1),data=densityDF,group=Line,colour=Line,geom="path",facets=~Site)+theme(legend.position="none")
+#each site seems to have its own dynamic over time as specified by the model
+```
+
+#plot by site
+
+```{r, results='asis'}
+load("out1_ptarmigan_trends.RData") #if not running the model above
+densityDF<-data.frame(meanNu=out1$mean$meanNumbers.Site)
+densityDF$Site<-levels(factor(siteInfo$Fylkesnavn))
+densityDF<-melt(densityDF,id=c("Site"))
+levels(densityDF$variable)<-2006+1:11
+densityDF$Year<-as.numeric(as.character(densityDF$variable))
+qplot(Year,value,data=densityDF,geom=c("path","point"),facets=~Site)+theme(legend.position="none")
+
+```
+
+#look at relationships between abundance and mammals/climate at the level of the fylk
+
+```{r, results="asis"}
+setwd("C:/Users/diana.bowler/OneDrive - NINA/Alpine/Ptarmigan/Scripts")
+load("climdataFylk.RData")
+load("mammalsFylk.RData")
+
+densityDF<-merge(densityDF,climdataFylk,by.x=c("Site","Year"),by.y=c("Fylkesnavn","Year"),all=T)
+densityDF<-merge(densityDF,mammalsFylk,by.x=c("Site","Year"),by.y=c("Fylkesnavn","Year"),all=T)
+
+qplot(meanSpring,log(value),data=densityDF)+facet_wrap(~~Site,scales="free")
+qplot(logit(propMammals),log(value),data=densityDF)+facet_wrap(~~Site,scales="free")
+qplot(meanSpring,log(value),data=densityDF)
+qplot(logit(propMammals),log(value),data=densityDF)
+
+```
+
+
+#investigate which spatial cluster in the most important
+
+#see what inla says:
+
+```{r}
+#nuIndivs$maxTransectLength[is.na(nuIndivs$TransectLength)]<-0
+
+library(INLA)
+inla1<-inla(nuTotal ~ factor(Year)+
+              f(as.numeric(factor(nuIndivs$LinjeID)),model="iid")+
+              f(as.numeric(factor(nuIndivs$Fylkesnavn)),model="iid")+
+              f(as.numeric(factor(nuIndivs$OmradeNavn)),model="iid"),
+              data=nuIndivs)
+summary(inla1)
+
+```
+
+```{r}
+library(INLA)
+inla1<-inla(nuTotal ~ factor(Year)+
+              f(as.numeric(factor(nuIndivs$LinjeID)),model="iid")+
+              f(as.numeric(factor(nuIndivs$Fylkesnavn)),model="iid")+
+              f(as.numeric(factor(nuIndivs$Rapporteringsniva)),model="iid"),
+              data=nuIndivs)
+summary(inla1)
+
+```
