@@ -21,6 +21,8 @@ myOmradeNavn = NULL
 myFylkesnavn = NULL
 plot=T
 
+library(plyr); library(dplyr)
+
 ```
 
 First get the raw data
@@ -36,6 +38,8 @@ knit("ptarmigan_readin.Rmd")
 
 #working out what distance for the human observations to include
 ```{r}
+
+library(plyr)
 
 mydataTemp<-subset(mydata,month%in%c(7,8,9))#anysurvey
 
@@ -71,7 +75,6 @@ dataSubset1<-subset(mydataTemp,FK_ArtId==1 & FK_OppfluktId%in%c(1,2))#willow par
 dataSubset2<-subset(mydataTemp,FK_ArtId==1 & FK_OppfluktId%in%c(3,4) & abs(LinjeAvstand)<10)#willow partmigan seen and any data flushed by a dog
 dataSubset<- rbind(dataSubset1,dataSubset2)
 dataSubset$LinjeAvstand <- abs(dataSubset$LinjeAvstand)#get rid of negative values
-detach("package:plyr")
 
 ```
 
@@ -82,8 +85,6 @@ Selection decision:
 
 ```{r}
 #get list of lines surveys 
-
-library(tidyverse)
 
 tempDF<-dataSubset %>%
   filter(Year==2007) %>%
@@ -185,7 +186,6 @@ ggplot(subset(dataSubsetSummmary,Year>2006))+
 
 ```{r cache = TRUE}
 
-
 #truncate distances at 200
 dataSubset = dataSubset %>%
         filter(LinjeAvstand<200,!is.na(LinjeAvstand))
@@ -195,7 +195,6 @@ dataSubset$LinjeAvstand <- abs(dataSubset$LinjeAvstand)
 nrow(dataSubset)#4678
 
 #bound extremes of timeSince
-
 dataQuantile <- quantile(abs(dataSubset$timeSince),0.95,na.rm=T)#360 - 6 hours..., probably longer than this is a new survey???
 dataSubset$timeSince<-ifelse(abs(dataSubset$timeSince)>dataQuantile, median(abs(dataSubset$timeSince)), abs(dataSubset$timeSince))
 
@@ -242,25 +241,24 @@ params <- c("b.group.size","b.time","esw")
 #Put the zeros and NAs in the dataset
 
 ```{r}
-library(plyr)
 
 #First insert the 0s into the datasheet
+#mydataTemp is a data frame contained all surveys
 lineInfo <- unique(mydataTemp[,c("Year","LinjeID","Fylkesnavn","Kommunenavn","OmradeNavn","OmradeID","Rapporteringsniva","TakseringID","Date","Year","month","Time","startTime","timeSince","LengdeTaksert")])
 #use Rapport instead of Fylk/Kommune??
 allData <- merge(lineInfo,dataSubset,all.x=T,by=c("Year","LinjeID","Fylkesnavn","Kommunenavn","OmradeNavn","OmradeID","Rapporteringsniva","TakseringID","Date","Year","month","Time","startTime","timeSince","LengdeTaksert"))
-#allData[,c("AntallHann","AntallHunn","AntallKylling","AntallUkjent","totalIndiv","Adults")])<-0#why wont work??
+#allData[,c("AntallHann","AntallHunn","AntallKylling","AntallUkjent","totalIndiv","Adults")])<-0#wont work??
 allData$AntallHann[is.na(allData$AntallHann)]<-0
 allData$AntallHunn[is.na(allData$AntallHunn)]<-0
 allData$AntallKylling[is.na(allData$AntallKylling)]<-0
 allData$AntallUkjent[is.na(allData$AntallUkjent)]<-0
 allData$totalIndiv[is.na(allData$totalIndiv)]<-0
 allData$Adults[is.na(allData$Adults)]<-0
-
 #subset(lineInfo,LinjeID=="816"&Year==2001) - missing transect length data
 #we are missing many other transect lengths...
 
 #now add NAs when a site was not visited in a year
-mydataWillow<-subset(allData,totalIndiv>0)
+mydataWillow<-subset(allData,totalIndiv>0)#ptarmigan lines
 lineInfo <- unique(mydataWillow[,c("LinjeID","Fylkesnavn","Kommunenavn","OmradeNavn","OmradeID","Rapporteringsniva")])
 potentialSurveys <- ldply(unique(mydataWillow$Year),function(x)cbind(Year=x,lineInfo))
 allData <- merge(potentialSurveys,allData,by=c("Year","LinjeID","Fylkesnavn","Kommunenavn","OmradeNavn","OmradeID","Rapporteringsniva"),all.x=T)
@@ -271,8 +269,11 @@ allData <- subset(allData,LinjeID%in%sumStats$LinjeID[sumStats$nuObs>0])
 
 #trim white space
 allData$Fylkesnavn<-trim(as.character(allData$Fylkesnavn))
-
 summary(allData$totalIndiv)
+
+#check we have an even data frame
+ddply(allData,.(Year),summarise,nuLines=length(unique(LinjeID)))
+#725 lines
 
 ```
 ```{r}

@@ -1,6 +1,4 @@
 
-#distance model
-cat("
     model{
 
     #################
@@ -191,4 +189,4 @@ cat("
     }}
 
     }
-    ",fill=TRUE,file="combined_model_covariateTS_ar1.txt")
+    
