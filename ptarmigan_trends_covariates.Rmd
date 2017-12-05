@@ -19,9 +19,17 @@ knit("ptarmigan_formatting.Rmd")
 
 ```
 
+Plot the data
+```{r results='asis'}
+
+qplot(Year,totalIndiv,data=allData,facets=~Fylkesnavn)
+
+```
+
+
 Get covariate data at the fylk level
 
-```{r}
+```{r, warning=FALSE,results='asis'}
 library(plyr)
 
 #setwd("C:/Users/diana.bowler/OneDrive - NINA/Alpine/Ptarmigan/Scripts")
@@ -32,7 +40,6 @@ library(plyr)
 
 load("springData.RData")
 springData<-ddply(springData,.(Fylkesnavn,Year),summarise,value=median(value,na.rm=T))
-head(springData)
 
 #load("autumnData.RData")
 #autumnData<-ddply(autumnData,.(Fylkesnavn,Year),summarise,value=median(value,na.rm=T))
@@ -47,40 +54,51 @@ climdata$Fylkesnavn<-allData$Fylkesnavn[match(climdata$site,allData$LinjeID)]
 juneData<-ddply(climdata,.(Fylkesnavn,year),summarise,value=median(snitt_temp,na.rm=T))
 names(juneData)<-c("Fylkesnavn","Year","value")
 
+#plotting
+qplot(Year,value,data=springData,facets=~Fylkesnavn)
+qplot(Year,value,data=juneData,facets=~Fylkesnavn)
+
+#fix ø manually
+springData$Fylkesnavn<-as.character(springData$Fylkesnavn)
+springData$Fylkesnavn[which(springData$Fylkesnavn=="Nord-Tr\xf8ndelag")]<-"Nord-Trøndelag" 
+springData$Fylkesnavn[which(springData$Fylkesnavn=="S\xf8r-Tr\xf8ndelag")]<-"Sør-Trøndelag" 
+springData$Fylkesnavn[which(springData$Fylkesnavn=="\xd8stfold")]<-"Østfold" 
+
 ```
 
-Select covariate for analysis
+Preliminary plotting
 
-```{r, results='asis'}
+```{r results='asis'}
 
 #choose my covariate
-myCovariate = juneData
-qplot(Year,value,data=myCovariate,colour=Fylkesnavn,geom=c("line","point"))
-myCovariate = subset(myCovariate,Fylkesnavn%in%nuIndivs$Fylkesnavn&Year%in%nuIndivs$Year)
-covariateMatrix = my.n
-rowNames<-as.character(sapply(row.names(my.n),function(x)strsplit(as.character(x),"_")[[1]][1]))
-for(i in 1:nrow(covariateMatrix)){
-  for(j in 1:ncol(covariateMatrix)){
-    covariateMatrix[i,j] = myCovariate$value[myCovariate$Fylkesnavn==rowNames[i]&
-                                              myCovariate$Year==dimnames(covariateMatrix)[[2]][j]]
-  }
-}
+myCovariate = springData
 
+#get number of individuals per fylke
+nuIndivs_Fylke <-
+  allData %>%
+    filter(Year>2006&Year<2017) %>%
+    group_by(Year,Fylkesnavn) %>%
+    summarise(nuAdults = mean(Adults,na.rm=T), 
+            nuJuvs = mean(AntallKylling,na.rm=T),
+            nuTotal = mean(totalIndiv,na.rm=T))
 
+unique(nuIndivs_Fylke$Fylkesnavn)
+unique(myCovariate$Fylkesnavn)
+
+nuIndivs_Fylke<-merge(nuIndivs_Fylke,myCovariate,by=c("Year","Fylkesnavn"))
+qplot(value,nuTotal,data=nuIndivs_Fylke,facets=~Fylkesnavn)
+qplot(value,nuTotal,data=nuIndivs_Fylke)+facet_wrap(~Fylkesnavn,scales="free")
 
 ```
-
 
 Get data
 
 ```{r, warning=FALSE}
 
-detach("package:plyr")
-
 #subset
 allData<-subset(allData,Year>2006&Year<2017)
 
-#get number of individuals
+#get number of individuals per line
 nuIndivs <-
   allData%>%
   group_by(Year,LinjeID,Fylkesnavn,Kommunenavn,OmradeNavn,OmradeID,Rapporteringsniva, add = T) %>%
@@ -92,6 +110,7 @@ nuIndivs <-
 nuIndivs$iYear <- nuIndivs$Year - min(nuIndivs$Year) + 1
 summary(nuIndivs)
 
+#reshape the line data into an array
 library(reshape2)
 nuIndivs$Line<-paste(nuIndivs$Fylkesnavn,nuIndivs$Rapporteringsniva,sep="_")
 nuIndivs$Line<-paste(nuIndivs$Line,nuIndivs$OmradeID,sep="#")
@@ -120,6 +139,21 @@ siteInfo<-data.frame(Line=row.names(my.n))
 siteInfo$Fylkesnavn<-as.numeric(factor(sapply(siteInfo$Line,function(x)strsplit(as.character(x),"_")[[1]][1])))
 siteInfo$Rapporteringsniva<-as.numeric(factor(sapply(siteInfo$Line,function(x)strsplit(as.character(x),"#")[[1]][1])))
 siteInfo$LinjeID<-as.numeric(factor(siteInfo$Line))
+
+#organise covariate
+myCovariate = subset(myCovariate,Fylkesnavn%in%nuIndivs$Fylkesnavn&Year%in%nuIndivs$Year)
+myCovariate$Fylkesnavn <- factor(myCovariate$Fylkesnavn)
+covariateMatrix = my.n
+rowNames<-as.character(sapply(row.names(my.n),function(x)strsplit(as.character(x),"_")[[1]][1]))
+all(myCovariate$Fylkesnavn%in%rowNames)
+all(myCovariate$Year%in%dimnames(covariateMatrix)[[2]])
+
+for(i in 1:nrow(covariateMatrix)){
+  for(j in 1:ncol(covariateMatrix)){
+    covariateMatrix[i,j] = myCovariate$value[myCovariate$Fylkesnavn==rowNames[i]&
+                                              myCovariate$Year==dimnames(covariateMatrix)[[2]][j]]
+  }
+}
 
 #Create a data frame with only detection
 allDetections<-subset(allData,totalIndiv>0&!is.na(totalIndiv))
@@ -185,14 +219,14 @@ params <- c("beta.covariate","Density")
 
 out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariate.txt", n.thin=nt,
                n.chains=3, n.burnin=100,n.iter=500, parallel = TRUE)
-```
-```{r}
 
 print(out1,3)
 
 ```
 
+
 #Separing the spatial and temporal elements
+
 
 ```{r results="asis"}
 
@@ -281,13 +315,11 @@ qplot(year,groupsize,data=groupsizeDF,group=site,colour=site,geom=c("line","poin
 
 ```
 
-
 #Covariates at the level of the omrade
 
-```{r}
+```{r results='asis'}
 
 #setwd("C:/Users/diana.bowler/OneDrive - NINA/Alpine/Ptarmigan/Scripts")
-library(plyr)
 
 load("springData.RData")
 springData<-ddply(springData,.(OmradeID,Year),summarise,value=median(value,na.rm=T))
@@ -308,8 +340,41 @@ juneData<-ddply(climdata,.(OmradeID,year),summarise,value=median(snitt_temp,na.r
 names(juneData)<-c("OmradeID","Year","value")
 head(juneData)
 
+#plotting
+qplot(Year,value,data=springData,geom=c("point","line"),colour=OmradeID)+
+  theme(legend.position = "none")
+qplot(Year,value,data=juneData,geom=c("point","line"),colour=OmradeID)+
+          theme(legend.position = "none")
+
 ```
 
+Prliminary plotting
+
+```{r results='asis'}
+
+#choose my covariate
+myCovariate = juneData
+
+#get number of individuals per fylke
+nuIndivs_Omrade <-
+  allData %>%
+    filter(Year>2006&Year<2017) %>%
+    group_by(Year,OmradeID,Fylkesnavn) %>%
+    summarise(nuAdults = mean(Adults,na.rm=T), 
+            nuJuvs = mean(AntallKylling,na.rm=T),
+            nuTotal = mean(totalIndiv,na.rm=T))
+
+nuIndivs_Omrade<-subset(nuIndivs_Omrade,!is.na(nuTotal))
+
+nuIndivs_Omrade<-merge(nuIndivs_Omrade,myCovariate,by=c("Year","OmradeID"))
+qplot(value,nuTotal,data=nuIndivs_Omrade,colour=OmradeID,facets=~Fylkesnavn)+
+  theme(legend.position="none")
+qplot(value,nuTotal,data=nuIndivs_Omrade,colour=OmradeID)+facet_wrap(~Fylkesnavn,scales="free")+
+  theme(legend.position="none")
+
+```
+
+Choose my covariate
 
 ```{r}
 
@@ -590,6 +655,7 @@ ggplot(dataspatialMelt)+geom_point(aes(x=springOnset,y=value))+geom_ribbon(aes(x
 ```{r}
 
 glm1<-glm(totalIndiv~SettSmagnager,data=allData)
+
 allDataSum<-ddply(allData,.(Year,Rapporteringsniva),summarise,propMammals=mean(SettSmagnager,na.rm=T),
                   totalIndiv=sum(totalIndiv,na.rm=T))
 
@@ -598,7 +664,7 @@ qplot(logit(propMammals),totalIndiv,data=allDataSum)+theme_classic()+stat_smooth
 ```
 
 
-Get the habitat data
+Get the habitat data:
 
 ```{r}
 
@@ -613,7 +679,7 @@ habitatdata <- read.delim(paste(cdir,"Veg_cover.csv",sep="/"))
 ```
 
 
-Get the harvesting data
+Get the harvesting data:
 
 ```{r results='asis'}
 
@@ -624,12 +690,20 @@ harvestdata<-melt(harvestdata,id=c("Fylke","Bird"))
 names(harvestdata)[which(names(harvestdata)=="variable")]<-"Year"
 names(harvestdata)[which(names(harvestdata)=="value")]<-"harvestBag"
 harvestdata$Year<-as.numeric(sapply(harvestdata$Year,function(x)strsplit(as.character(x),"\\.")[[1]][2]))
+harvestdata<-subset(harvestdata,!is.na(harvestBag))
 qplot(Year,harvestBag,data=harvestdata,colour=Fylke,geom=c("point","line"))
 
 #areas with more abundance will have higher bags...
 #bags relate to counts in previous year - variation in fraction of previous year harvested...
 
-(bag/Nt-1)
+#(bag/Nt-1)
 
 ```
+
+```{r}
+
+#get fylke area data
+
+```
+
 
