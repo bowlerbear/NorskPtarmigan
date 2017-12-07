@@ -26,8 +26,6 @@ Organise the data
 
 ```{r, warning=FALSE}
 
-detach("package:plyr")
-
 #subset
 allData<-subset(allData,Year>2006)
 
@@ -137,13 +135,11 @@ Run model in JAGS
 
 ```{r}
 
-source('C:/Users/diana.bowler/OneDrive - NINA/methods/models/bugsFunctions.R')
-
-setwd("C:/Users/diana.bowler/OneDrive - NINA/Alpine/Ptarmigan/Scripts")
+library(jagsUI)
 
 #inits <- function(){list(trend = dunif(-2,0))}
 
-params <- c("Density","meanNumbers","meanNumbers.Site")
+params <- c("Density","meanNumbers")
 
 out1 <- jags(bugs.data, inits=NULL, params, "combined_model_noTrend.txt", n.thin=nt,
                n.chains=3, n.burnin=2000,n.iter=10000)

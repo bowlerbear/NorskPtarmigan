@@ -1,4 +1,4 @@
-setwd("C:/Users/diana.bowler/OneDrive - NINA/Alpine/Ptarmigan/Scripts")
+#setwd("C:/Users/diana.bowler/OneDrive - NINA/Alpine/Ptarmigan/Scripts")
 
 #distance model
 cat("
@@ -145,8 +145,8 @@ cat("
     } 
 
     for(t in 1:n.Years){    
-      FinnmarkNumbers[t]<-mean(Density[1:294,t])    
-      TromsNumbers[t]<-mean(Density[295:360,t]) 
+      #FinnmarkNumbers[t]<-mean(Density[1:294,t])    
+      #TromsNumbers[t]<-mean(Density[295:360,t]) 
       totNumbers[t] <- sum(Density[,t])
       meanNumbers[t] <- mean(Density[,t])
     }

@@ -54,15 +54,15 @@ climdata$Fylkesnavn<-allData$Fylkesnavn[match(climdata$site,allData$LinjeID)]
 juneData<-ddply(climdata,.(Fylkesnavn,year),summarise,value=median(snitt_temp,na.rm=T))
 names(juneData)<-c("Fylkesnavn","Year","value")
 
-#plotting
-qplot(Year,value,data=springData,facets=~Fylkesnavn)
-qplot(Year,value,data=juneData,facets=~Fylkesnavn)
-
 #fix ø manually
 springData$Fylkesnavn<-as.character(springData$Fylkesnavn)
 springData$Fylkesnavn[which(springData$Fylkesnavn=="Nord-Tr\xf8ndelag")]<-"Nord-Trøndelag" 
 springData$Fylkesnavn[which(springData$Fylkesnavn=="S\xf8r-Tr\xf8ndelag")]<-"Sør-Trøndelag" 
 springData$Fylkesnavn[which(springData$Fylkesnavn=="\xd8stfold")]<-"Østfold" 
+
+#plotting
+qplot(Year,value,data=springData,facets=~Fylkesnavn)
+qplot(Year,value,data=juneData,facets=~Fylkesnavn)
 
 ```
 
@@ -385,6 +385,9 @@ covariateMatrix = my.n
 rowNames<-as.character(sapply(row.names(my.n),function(x)strsplit(as.character(x),"#")[[1]][2]))
 rowNames<-as.character(sapply(rowNames,function(x)strsplit(as.character(x),"-")[[1]][1]))
 
+all(myCovariate$OmradeID%in%rowNames)
+all(myCovariate$Year%in%dimnames(covariateMatrix)[[2]])
+
 for(i in 1:nrow(covariateMatrix)){
   for(j in 1:ncol(covariateMatrix)){
     covariateMatrix[i,j] = myCovariate$value[myCovariate$OmradeID==rowNames[i]&
@@ -396,13 +399,13 @@ for(i in 1:nrow(covariateMatrix)){
 spatialMatrix<-as.numeric(rowMeans(covariateMatrix))
 temporalMatrix<-as.numeric(colMeans(covariateMatrix))
 
-#make a DF
-temporalDF<-data.frame(Year=dimnames(my.n)[[2]],value=temporalMatrix)
-spatialDF<-data.frame(OmradeID=rowNames,value=spatialMatrix)
-
 #look at summaries
 summary(spatialMatrix)
 summary(temporalMatrix)
+
+#make a DF
+temporalDF<-data.frame(Year=dimnames(my.n)[[2]],value=temporalMatrix)
+spatialDF<-data.frame(OmradeID=rowNames,value=spatialMatrix)
 
 ##make anomalies
 bugs.data$temporalMatrix <- apply(covariateMatrix,2,function(x)x-spatialMatrix)
@@ -606,7 +609,7 @@ bugs.data$year1[bugs.data$year1==0]<-1
 params <- c("int.d","beta.auto","beta.covariateS","beta.covariateT","pred.Time","pred.Space")
 
 out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS_ar1.txt", n.thin=nt,
-               n.chains=3, n.burnin=400,n.iter=2000,parallel = T)
+               n.chains=3, n.burnin=400,n.iter=5000,parallel = T)
 
 ```
 
@@ -689,7 +692,8 @@ library(reshape2)
 harvestdata<-melt(harvestdata,id=c("Fylke","Bird"))
 names(harvestdata)[which(names(harvestdata)=="variable")]<-"Year"
 names(harvestdata)[which(names(harvestdata)=="value")]<-"harvestBag"
-harvestdata$Year<-as.numeric(sapply(harvestdata$Year,function(x)strsplit(as.character(x),"\\.")[[1]][2]))
+harvestdata$Year<-gsub("X","",harvestdata$Year)
+harvestdata$Year<-as.numeric(sapply(harvestdata$Year,function(x)strsplit(as.character(x),"\\.")[[1]][1]))
 harvestdata<-subset(harvestdata,!is.na(harvestBag))
 qplot(Year,harvestBag,data=harvestdata,colour=Fylke,geom=c("point","line"))
 
@@ -703,7 +707,67 @@ qplot(Year,harvestBag,data=harvestdata,colour=Fylke,geom=c("point","line"))
 ```{r}
 
 #get fylke area data
+countyArea <- read.delim("RSF_10bin_by county.txt",as.is=T)
+countyArea$county[which(countyArea$county=="Nord-Tr\xf8ndelag")]<-"Nord-Trøndelag" 
+countyArea$county[which(countyArea$county=="S\xf8r-Tr\xf8ndelag")]<-"Sør-Trøndelag" 
+countyArea$county[which(countyArea$county=="\xd8stfold")]<-"Østfold" 
+countyArea <- ddply(countyArea,.(county), summarise, area = sum(RSF.km2[RSFbin!=1]))
+unique(countyArea$county)
+unique(harvestdata$Fylke)
+
+harvestdata <- merge(harvestdata,countyArea, by.x="Fylke", by.y = "county")
+qplot(Year,harvestBag/area,data=subset(harvestdata,Year>=2006&Fylke%in%nuIndivs$Fylkesnavn),colour=Fylke,geom=c("point","line"))
 
 ```
 
+```{r}
+
+#get predicted counts
+load("out1_ptarmigan_noTrends.RData")
+out<-data.frame(out1$mean$Density)
+out<-cbind(siteInfo,out)#from the trends_analysis file
+library(reshape2)
+outMelt<-melt(out,id=c("Line","Fylkesnavn","Rapporteringsniva","LinjeID"))
+names(outMelt)[5:6]<-c("Year","Density")
+outMelt$Fylkesnavn<-sapply(outMelt$Line,function(x)strsplit(as.character(x),"_")[[1]][1])
+outMelt$Year<-as.numeric(gsub("X","",outMelt$Year))
+outMelt$Year<-outMelt$Year + 2006
+
+#average density per fylk
+densityFylke<-ddply(outMelt,.(Fylkesnavn,Year),summarise,meanDensity=mean(Density))
+
+#merge with harvest bag data
+densityFylke<-merge(densityFylke,harvestdata,by.x=c("Year","Fylkesnavn"),by.y=c("Year","Fylke"))
+
+qplot((harvestBag/area),meanDensity,data=densityFylke,
+      color=Fylkesnavn,geom=c("point"))+stat_smooth(method="lm",se=F)
+
+qplot(meanDensity,(harvestBag/area),data=densityFylke,
+      color=Fylkesnavn,geom=c("point"))+stat_smooth(method="lm",se=F)
+
+qplot(Year,(harvestBag/area)/meanDensity,data=densityFylke,colour=Fylkesnavn,
+      geom=c("point"))+stat_smooth(method="lm",se=F)
+
+qplot(meanDensity,(harvestBag/area)/meanDensity,data=densityFylke,colour=Fylkesnavn,
+      geom=c("point"))+stat_smooth(method="lm",se=F)
+
+```
+```{r}
+#plot annual trends
+outMelt$Rapport<-sapply(outMelt$Line,function(x)strsplit(as.character(x),"#")[[1]][1])
+
+ggplot(outMelt,aes(x=Year,y=Density,group=LinjeID))+
+  geom_line()+
+  geom_point(aes(colour=factor(Rapport)))+
+  facet_wrap(~Fylkesnavn)+
+  theme(legend.position="none")
+
+```
+
+Plot harvesting data at the municipality level
+
+```{r}
+
+
+```
 
