@@ -88,6 +88,23 @@ Remember this includes all species at the moment...
 
 
 ```
+## 
+## Attaching package: 'lubridate'
+```
+
+```
+## The following object is masked from 'package:plyr':
+## 
+##     here
+```
+
+```
+## The following object is masked from 'package:base':
+## 
+##     date
+```
+
+```
 ## Error in eval(expr, envir, enclos): object 'mydata' not found
 ```
 
@@ -166,6 +183,47 @@ Remember this includes all species at the moment...
 ```
 
 ```
+## gdata: read.xls support for 'XLS' (Excel 97-2004) files ENABLED.
+```
+
+```
+## 
+```
+
+```
+## gdata: read.xls support for 'XLSX' (Excel 2007+) files ENABLED.
+```
+
+```
+## 
+## Attaching package: 'gdata'
+```
+
+```
+## The following objects are masked from 'package:dplyr':
+## 
+##     combine, first, last
+```
+
+```
+## The following object is masked from 'package:stats':
+## 
+##     nobs
+```
+
+```
+## The following object is masked from 'package:utils':
+## 
+##     object.size
+```
+
+```
+## The following object is masked from 'package:base':
+## 
+##     startsWith
+```
+
+```
 ## Error in trim(mydata$Fylkesnavn): object 'mydata' not found
 ```
 
@@ -218,6 +276,10 @@ Remember this includes all species at the moment...
 ```
 
 ```
+## Rdistance (version 1.3.2)
+```
+
+```
 ## Error in inherits(dist, "data.frame"): object 'myDistances' not found
 ```
 
@@ -239,6 +301,11 @@ Remember this includes all species at the moment...
 
 ```
 ## Error in eval(expr, envir, enclos): object 'mydata' not found
+```
+
+```
+## Warning: failed to assign NativeSymbolInfo for env since env is already
+## defined in the 'lazyeval' namespace
 ```
 
 ```

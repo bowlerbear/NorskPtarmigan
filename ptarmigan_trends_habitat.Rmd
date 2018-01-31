@@ -1,0 +1,28 @@
+---
+title: "combined_model_covariates"
+author: "Diana Bowler"
+date: "14 november 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+Get the habitat data:
+
+```{r}
+
+cdir<-"R:/Prosjekter/AlpineBirds/LagopusPopulationMonitoring"
+habitatdata <- read.delim(paste(cdir,"Veg_cover.csv",sep="/"))
+
+#exclude habitat data if mostly NAs
+
+#get proportion of area that is forest for each plot
+
+
+```
+
+

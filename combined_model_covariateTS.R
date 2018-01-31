@@ -160,21 +160,16 @@ cat("
 
     #State model
     for(j in 1:n.Lines){
-      for(t in 1:(n.Years-1)){
+      for(t in 1:n.Years){
       
       #linear predictor on density
-        log(Density[j,t+1]) <- int.d + 
-                            beta.auto * log(Density[j,t]) +
+        log(Density[j,t]) <- int.d + 
                             random.d.line[j] + 
-                            beta.covariateS * spatialMatrix[j,t+1] + 
-                            #beta.covariateS2 * spatialMatrix2[j,t+1] +
-                            beta.covariateT * temporalMatrix[j,t+1]
+                            beta.covariateS * spatialMatrix[j,t] + 
+                            #beta.covariateS2 * spatialMatrix2[j,t] +
+                            beta.covariateT * temporalMatrix[j,t]
     }}
 
-    #Priors on the first year of density
-    for(j in 1:n.Lines){
-        Density[j,1] ~ dpois(year1[j])
-    }
 
     #get predicted temporal effects
     for(j in 1:n.Lines){
@@ -198,4 +193,4 @@ cat("
     }
 
     }
-    ",fill=TRUE,file="combined_model_covariateTS_ar1.txt")
+    ",fill=TRUE,file="combined_model_covariateTS.txt")

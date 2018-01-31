@@ -1,0 +1,207 @@
+---
+title: "combined_model_covariates"
+author: "Diana Bowler"
+date: "14 november 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+Plot harvesting data at the municipality level
+
+```{r}
+#harvest data at the municipality level
+harvestdata<-read.csv("20171261036597416338051Smaavilt2.csv",sep=";",as.is=T)
+names(harvestdata)[1:2]<-c("Municipality","Species")
+harvestdata<-harvestdata[1:1038,]#chop off unnecessary rows at the end - with comments rather than data
+#align the municipality name with the data
+harvestdata$Municipality[2:1038]<-harvestdata$Municipality[1:1037]
+harvestdata<-subset(harvestdata,X2008.2009!="")
+harvestdata[,3:9]<-sapply(harvestdata[,3:9],function(x)as.numeric(x))
+
+#fix Municipality names
+tidyNorwegian<-function(x){
+  x<-as.character(x)
+  x<-gsub("\xb0","°",x)
+  x<-gsub("\xf8","ø",x)
+  x<-gsub("\xe1","á",x)
+  x<-gsub("\xe6","æ",x)
+  x<-gsub("\U3e35653c","å",x)
+  x<-gsub("\xd8","Ø",x)
+  x<-gsub("\xd8","Ø",x)
+  x<-gsub("\xc5","Å",x)  
+}
+
+harvestdata$Municipality<-tidyNorwegian(harvestdata$Municipality)
+
+#area data at the municipality level
+#can get rid of brackets
+#but remember Harstad should be combined with Harstad - Hárstták
+library(gdata)
+harvestdata$Municipality<-sapply(harvestdata$Municipality,function(x)strsplit(as.character(x),"\\(")[[1]][1])
+harvestdata$Municipality<-trim(harvestdata$Municipality)
+harvestdata$Municipality[which(harvestdata$Municipality=="Harstad")]<-"Harstad - Hárstták"
+
+#do they match with the kommune data
+unique(nuIndivs$Kommunenavn[!nuIndivs$Kommunenavn%in%harvestdata$Municipality])
+#"Kautokeino"    - match with Guovdageaidnu - Kautokeino     
+#"Porsanger"   - match with "Porsanger - Porsángu - Porsanki"       
+#"Karasjok"   - match with "Kárásjohka - Karasjok"         
+#"Tana"      - match with Deatnu - Tana         
+#"Nesseby"   . match with Unjárga - Nesseby        
+#"Dovre Fjellstyrene" - match with Dovre? (there is also a separarate Dovre in the ptarmidan data)
+#"Snåsa"  - match with Snåase - Snåsa
+harvestdata$Municipality[which(harvestdata$Municipality=="Guovdageaidnu - Kautokeino")]<-"Kautokeino"
+harvestdata$Municipality[which(harvestdata$Municipality=="Porsanger - Porsángu - Porsanki")]<-"Porsanger"
+harvestdata$Municipality[which(harvestdata$Municipality=="Kárásjohka - Karasjok")]<-"Karasjok"
+harvestdata$Municipality[which(harvestdata$Municipality=="Deatnu - Tana")]<-"Tana"
+harvestdata$Municipality[which(harvestdata$Municipality=="Unjárga - Nesseby")]<-"Nesseby"
+harvestdata$Municipality[which(harvestdata$Municipality=="Snåase - Snåsa")]<-"Snåsa"
+
+#get kommune names
+outMelt$Kommunenavn<-nuIndivs$Kommunenavn[match(outMelt$Line,nuIndivs$Line)]
+outMelt$Kommunenavn[which(outMelt$Kommunenavn=="Dovre Fjellstyrene")]<-"Dovre"
+#check again that they are there
+unique(outMelt$Kommunenavn[!outMelt$Kommunenavn%in%harvestdata$Municipality])
+
+#melt harvesdata
+library(reshape2)
+harvestdata<-melt(harvestdata,id=c("Municipality","Species"))
+names(harvestdata)[which(names(harvestdata)=="variable")]<-"Year"
+names(harvestdata)[which(names(harvestdata)=="value")]<-"harvestBag"
+harvestdata$Year<-gsub("X","",harvestdata$Year)
+harvestdata$Year<-as.numeric(sapply(harvestdata$Year,function(x)strsplit(as.character(x),"\\.")[[1]][1]))#year is the first year when the winter began
+harvestdata<-subset(harvestdata,!is.na(harvestBag))
+
+#average density per fylk
+densityKommunenavn<-ddply(outMelt,.(Kommunenavn,Year),summarise,meanDensity=mean(Density))
+
+#merge with harvest bag data
+densityKommunenavn<-merge(densityKommunenavn,harvestdata,by.x=c("Year","Kommunenavn"),by.y=c("Year","Municipality"))
+
+#get area data too
+kommuneAreas<-read.delim("RSF_10bin_municipalities.txt")
+kommuneAreas$MunicipalityName<-tidyNorwegian(kommuneAreas$MunicipalityName)
+kommuneAreas <- ddply(kommuneAreas,.(MunicipalityName), summarise, area = sum(RSF.km2[RSFbin!=1]))
+densityKommunenavn$Kommunenavn[!densityKommunenavn$Kommunenavn%in%kommuneAreas$MunicipalityName]
+densityKommunenavn<-merge(densityKommunenavn,kommuneAreas,by.x=c("Kommunenavn"),by.y=c("MunicipalityName"))
+densityKommunenavn$Fylkesnavn<-nuIndivs$Fylkesnavn[match(densityKommunenavn$Kommunenavn,nuIndivs$Kommunenavn)]
+densityKommunenavn$harvestBag<-as.numeric(densityKommunenavn$harvestBag)
+
+qplot(meanDensity,harvestBag/area/meanDensity,
+      data=densityKommunenavn,
+      group=Kommunenavn,
+      colour=Kommunenavn,
+      facets=~Fylkesnavn,geom=c("point"))+
+      stat_smooth(method="lm",se=F)
+
+
+qplot(meanDensity,harvestBag/area/meanDensity,
+      data=densityKommunenavn,
+      group=Kommunenavn,
+      colour=Kommunenavn,
+      facets=~Fylkesnavn,geom=c("point"))+
+      stat_smooth(method="lm",se=F)+
+      xlim(0,10)
+
+qplot(Year,harvestBag/area/meanDensity,
+      data=densityKommunenavn,
+      group=Kommunenavn,
+      colour=Kommunenavn,
+      facets=~Fylkesnavn,geom=c("point"))+
+      stat_smooth(method="lm",se=F)
+
+```
+
+Decision:
+
+(1) Impute the missing values in 2007
+
+```{r}
+nuIndivs$kommuneHarvestBag<-as.numeric(harvestdata$harvestBag
+                                    [match(interaction(nuIndivs$Kommunenavn,nuIndivs$Year),                                   interaction(harvestdata$Municipality,harvestdata$Year))])
+
+#fit a model to the data including a year trend a kommune effect and a random year effect
+hist(log(nuIndivs$kommuneHarvestBag))
+summary(nuIndivs$kommuneHarvestBag)
+
+#use lm
+lm1<-lm(log(kommuneHarvestBag) ~ Year*Kommunenavn, data = nuIndivs)
+nuIndivs$predHarvest<-exp(predict(lm1,newdata=nuIndivs[,c("Year","Kommunenavn")]))
+nuIndivs$kommuneHarvestBag[is.na(nuIndivs$kommuneHarvestBag)]<-nuIndivs$predHarvest[is.na(nuIndivs$kommuneHarvestBag)]
+
+my.harvest <- acast(nuIndivs,Line~Year,value.var="kommuneHarvestBag")
+bugs.data$harvestBag<-my.harvest
+
+siteInfo$countyArea<-densityKommunenavn$area[match(siteInfo$Kommunenavn,densityKommunenavn$Kommunenavn)]
+bugs.data$countyArea<-siteInfo$countyArea
+
+bugs.data$n.Kommune<-length(unique(nuIndivs$Kommunenavn))
+bugs.data$Kommune<-as.numeric(as.factor(siteInfo$Kommunenavn))
+
+```
+
+Run the model
+
+```{r}
+#year one priors
+bugs.data$year1<-as.numeric(apply(my.n,1,function(x)ifelse(!is.na(x[1]),x[1],max(x,na.rm=T))))
+bugs.data$year1[bugs.data$year1==0]<-1
+
+params <- c("int.d","beta.auto","harvest.effect","line.d.sd","year.d.sd","site.d.sd")
+
+out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS_ar1_harvestingImputed.txt", n.thin=nt,
+               n.chains=3, n.burnin=2000,n.iter=10000,parallel = T)
+
+```
+```{r}
+
+print(out1,2)
+
+```
+(2) Add the new variables to the bugs data (but this time with missing data):
+
+```{r}
+#add missing values and shift the year by one
+nuIndivs$kommuneHarvestBag<-as.numeric(harvestdata$harvestBag
+                                    [match(interaction(nuIndivs$Kommunenavn,nuIndivs$Year),                                   interaction(harvestdata$Municipality,harvestdata$Year))])
+
+my.harvest <- acast(nuIndivs,Line~Year,value.var="kommuneHarvestBag")
+bugs.data$harvestBag<-my.harvest
+
+siteInfo$countyArea<-densityKommunenavn$area[match(siteInfo$Kommunenavn,densityKommunenavn$Kommunenavn)]
+bugs.data$countyArea<-siteInfo$countyArea
+
+bugs.data$n.Kommune<-length(unique(nuIndivs$Kommunenavn))
+bugs.data$Kommune<-as.numeric(as.factor(siteInfo$Kommunenavn))
+
+```
+
+Run the model
+
+```{r}
+#year one priors
+bugs.data$year1<-as.numeric(apply(my.n,1,function(x)ifelse(!is.na(x[1]),x[1],max(x,na.rm=T))))
+bugs.data$year1[bugs.data$year1==0]<-1
+
+params <- c("int.d","beta.auto","harvest.effect","line.d.sd","year.d.sd","site.d.sd","expHarvestEffort","expNuIndivs.new")
+
+out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS_ar1_harvesting.txt", n.thin=nt,
+               n.chains=3, n.burnin=2000,n.iter=10000,parallel = T)
+
+```
+
+Convergence failure....
+
+```{r}
+
+print(out1,2)
+traceplot(out1)
+
+```
+
+

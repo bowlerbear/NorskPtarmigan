@@ -1,0 +1,236 @@
+---
+title: "combined_model_covariates"
+author: "Diana Bowler"
+date: "14 november 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+#Covariates at the level of the line
+
+#ROS data (april and may)
+
+```{r results='asis'}
+
+#get temperature data
+setwd("/data/home/diana.bowler/tempData")
+library(lubridate)
+tempFiles <- list.files(getwd())
+tempData <- ldply(tempFiles, function(x){
+      temp <- read.delim(x)
+      temp <- subset(temp,site%in%nuIndivs$LinjeID)
+      temp$Date <- gsub("temperature_","",temp$map)
+      temp$Date <- as.Date(temp$Date, format="%Y_%m_%d")
+      temp$day <- day(temp$Date)
+      temp$month <- month(temp$Date)
+      subset(temp,month%in%c(1:2,12))
+})
+
+#same for precipitation
+setwd("/data/home/diana.bowler/precipData")
+tempFiles <- list.files(getwd())
+precipData <- ldply(tempFiles, function(x){
+      temp <- read.delim(x)
+      temp <- subset(temp,site%in%nuIndivs$LinjeID)
+      temp$Date <- gsub("precipitation_","",temp$map)
+      temp$Date <- as.Date(temp$Date, format="%Y_%m_%d")
+      temp$day <- day(temp$Date)
+      temp$month <- month(temp$Date)
+      subset(temp,month%in%c(1:2,12))
+})
+
+#merge files
+ROSData<-merge(tempData[,-c(1,2,5)],precipData[,-c(1,2,5)],by=c("site","Date","day","month"))#5 is the superfluous map column, 1 2 are the coords
+#save(ROSData,file="ROSData.RData")
+
+#clean columns
+ROSData$temp <- as.numeric(ROSData$temp)
+ROSData$precip <- as.numeric(ROSData$precip)
+ROSData$Year <- year(ROSData$Date)
+
+#get average 
+#tapply is MUCH quicker than ddply
+outT<-tapply(ROSData$temp,list(ROSData$site,ROSData$Date),mean)
+outP<-tapply(ROSData$precip,list(ROSData$site,ROSData$Date),mean)
+
+#reorganise
+library(reshape2)
+outTm<-melt(outT)
+names(outTm)<-c("site","Date","temp")
+outPm<-melt(outP)
+names(outPm)<-c("site","Date","precip")
+outAll<-merge(data.table(outTm),data.table(outPm),by=c("site","Date"))
+outAll$Year <- year(outAll$Date)
+outAll$month <- month(outAll$Date)
+outAll$Year[outAll$month==12] <- outAll$Year[outAll$month==12]+1 #shift december into the following year winter
+
+#now count number of days above 0 amd precip above 0 each year and site
+outAllsubset<-subset(outAll, temp>0 & precip>0)
+out<-table(outAllsubset$site,outAllsubset$Year)
+outM<-melt(out)
+names(outM)<-c("site","Year","ROS")
+
+ROSData<-outM
+
+#add spatial cluster units
+ROSData$OmradeID<-allData$OmradeID[match(ROSData$site,allData$LinjeID)]
+ROSData$Fylke<-allData$Fylkesnavn[match(ROSData$site,allData$LinjeID)]
+
+#plotting
+qplot(Year,ROS,data=ROSData,geom=c("point","line"),colour=OmradeID)+
+          theme(legend.position = "none")+
+          facet_wrap(~Fylke)
+
+```
+
+
+#Organise the covariate
+
+```{r}
+
+#choose my covariate
+myCovariate =ROSData
+myCovariate<-subset(myCovariate,Year%in%nuIndivs$Year)
+covariateMatrix = my.n
+rowNames<-as.character(sapply(row.names(my.n),function(x)strsplit(as.character(x),"#")[[1]][2]))
+rowNames<-as.character(sapply(rowNames,function(x)strsplit(as.character(x),"-")[[1]][2]))
+
+all(myCovariate$site%in%rowNames)
+all(myCovariate$Year%in%dimnames(covariateMatrix)[[2]])
+
+for(i in 1:nrow(covariateMatrix)){
+  for(j in 1:ncol(covariateMatrix)){
+    covariateMatrix[i,j] = myCovariate$ROS[myCovariate$site==rowNames[i]&
+                                              myCovariate$Year==dimnames(covariateMatrix)[[2]][j]]
+  }
+}
+
+#split into spatial and temporal anomalies
+spatialMatrix<-as.numeric(rowMeans(covariateMatrix))
+temporalMatrix<-as.numeric(colMeans(covariateMatrix))
+
+#look at summaries
+summary(spatialMatrix)
+summary(temporalMatrix)
+
+#make a DF
+temporalDF<-data.frame(Year=dimnames(my.n)[[2]],value=temporalMatrix)
+spatialDF<-data.frame(LinjeID=rowNames,value=spatialMatrix)
+
+##make anomalies
+bugs.data$temporalMatrix <- apply(covariateMatrix,2,function(x)x-spatialMatrix)
+bugs.data$spatialMatrix <- t(apply(covariateMatrix,1,function(x)x-temporalMatrix))
+bugs.data$spatialMatrix2 <- bugs.data$spatialMatrix^2#also add a polynomial term for the spatial variation
+
+#temporal
+tMmelted<-melt(bugs.data$temporalMatrix)
+allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
+                                           interaction(tMmelted$X2,tMmelted$X1))]
+
+ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
+  geom_point(aes(colour=factor(Fylkesnavn)))+
+  geom_line(aes(colour=factor(Fylkesnavn)))+
+  theme(legend.position="none")+
+  ggtitle("temporal")
+
+#spatial
+tMmelted<-melt(bugs.data$spatialMatrix)
+allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
+                                           interaction(tMmelted$X2,tMmelted$X1))]
+
+ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
+  geom_point(aes(colour=factor(Fylkesnavn)))+
+  geom_line(aes(colour=factor(Fylkesnavn)))+
+  theme(legend.position="none")+
+  ggtitle("spatial")
+
+```
+
+#Alternative plotting
+
+```{r results='asis'}
+tMmelted<-melt(bugs.data$temporalMatrix)
+allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
+                                           interaction(tMmelted$X2,tMmelted$X1))]
+
+ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
+  geom_point(aes(colour=factor(OmradeID)))+
+  theme(legend.position="none")+
+  ggtitle("temporal")+
+  facet_wrap(~Fylkesnavn,scales="free")
+
+#negative trends driven by warm year
+
+tMmelted<-melt(bugs.data$spatialMatrix)
+allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
+                                           interaction(tMmelted$X2,tMmelted$X1))]
+
+ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
+  geom_point(aes(colour=factor(OmradeID)))+
+  theme(legend.position="none")+
+  ggtitle("spatial")+
+  facet_wrap(~Fylkesnavn)
+
+```
+
+
+Spatial pattern and temporal anomalies
+
+```{r}
+
+#the temporal anomalies are the same
+#the spatial pattern is now assumed to be fixed
+bugs.data$spatialMatrix <- cbind(spatialMatrix,spatialMatrix,spatialMatrix,spatialMatrix,spatialMatrix,spatialMatrix,spatialMatrix,spatialMatrix,spatialMatrix,spatialMatrix)
+bugs.data$spatialMatrix2 <-bugs.data$spatialMatrix^2
+bugs.data$spatialMatrix<-bugs.data$spatialMatrix-median(bugs.data$spatialMatrix)
+bugs.data$spatialMatrix2<-bugs.data$spatialMatrix2-median(bugs.data$spatialMatrix2)
+
+```
+
+
+#Fit a basic model against abundance
+
+```{r}
+
+params <- c("int.d","beta.covariateS","beta.covariateT","pred.Time","pred.Space")
+
+out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS.txt", n.thin=nt,
+               n.chains=3, n.burnin=400,n.iter=5000,parallel = T)
+
+```
+
+#Print the output
+
+```{r}
+print(out1,2)
+save(out1,file="out1_ROS.RData")
+
+```
+
+#Fit a model with ar1 term
+```{r}
+
+#year one priors
+bugs.data$year1<-as.numeric(apply(my.n,1,function(x)ifelse(!is.na(x[1]),x[1],max(x,na.rm=T))))
+bugs.data$year1[bugs.data$year1==0]<-1
+
+params <- c("int.d","beta.auto","beta.covariateS","beta.covariateT","pred.Time","pred.Space")
+
+out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS_ar1.txt", n.thin=nt,
+               n.chains=3, n.burnin=2000,n.iter=10000,parallel = T)
+
+```
+
+#Print the output
+
+```{r}
+print(out1,2)
+save(out1,file="out1_ROS.RData")
+
+```
+
