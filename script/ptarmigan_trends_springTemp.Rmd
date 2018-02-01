@@ -17,9 +17,9 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r results='asis'}
 
-setwd("/data/home/diana.bowler/tempData")
+setwd("/data/home/diana.bowler/climaticFiles/tempData")
 library(lubridate)
-
+library(plyr)
 tempFiles <- list.files(getwd())
 springData <- ldply(tempFiles, function(x){
       temp <- read.delim(x)
@@ -45,6 +45,11 @@ springData$Fylke<-allData$Fylkesnavn[match(springData$site,allData$LinjeID)]
 qplot(Year,temp,data=springData,geom=c("point","line"),colour=OmradeID)+
           theme(legend.position = "none")+
           facet_wrap(~Fylke)
+
+
+#average across all sites
+springDataSummary <- ddply(springData,.(Year),summarise,temp=mean(temp,na.rm=T))
+qplot(Year,temp,data=springDataSummary,geom=c("point","line"))+theme_light()
 
 ```
 

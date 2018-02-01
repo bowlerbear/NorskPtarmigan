@@ -98,6 +98,8 @@ bugs.data$spatialMatrix2 <-bugs.data$spatialMatrix^2
 bugs.data$spatialMatrix<-bugs.data$spatialMatrix-median(bugs.data$spatialMatrix)
 bugs.data$spatialMatrix2<-bugs.data$spatialMatrix2-median(bugs.data$spatialMatrix2)
 
+sd(bugs.data$temporalMatrix)
+sd(bugs.data$spatialMatrix)
 ```
 
 #Fit a basic model against abundance
