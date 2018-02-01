@@ -158,10 +158,9 @@ dataSubsetSummmary <- dataSubset %>%
       summarise(totalAdults = sum(Adults))
 
 
-ggplot(subset(dataSubsetSummmary,Latitude>50 &Latitude<75))+
-  geom_point(aes(x=Longitude,y=Latitude,colour=log(totalAdults)))+
-  facet_wrap(~Year)+
-  scale_colour_gradient(low="blue",high="red")
+ggplot(subset(dataSubsetSummmary,Latitude>50 &Latitude<75&Year>2006))+
+  geom_point(aes(x=Longitude,y=Latitude))+
+  facet_wrap(~Year)
 
 ```
 
@@ -171,14 +170,16 @@ ggplot(subset(dataSubsetSummmary,Latitude>50 &Latitude<75))+
 
 dataSubsetSummmary <- 
   dataSubset %>%
-    group_by(LinjeID,Year,Rapporteringsniva) %>%
-      summarise(totalAdults = sum(Adults))
+    group_by(Year,Fylkesnavn,LinjeID,Rapporteringsniva) %>%
+      summarise(totalAdults = sum(Adults))%>%
+    group_by(Year,Fylkesnavn,Rapporteringsniva) %>%
+      summarise(meanAdults = mean(totalAdults,na.rm=T))
 
 ggplot(subset(dataSubsetSummmary,Year>2006))+
-  geom_line(aes(x=Year,y=totalAdults,colour=factor(LinjeID)))+
-  facet_wrap(~Rapporteringsniva)+
+  geom_line(aes(x=Year,y=meanAdults,colour=factor(Rapporteringsniva)))+
+  facet_wrap(~Fylkesnavn)+
   theme(legend.position = "none")+
-  scale_y_log10()
+  xlim(2006,2018)
 
 ```
 
@@ -274,6 +275,8 @@ summary(allData$totalIndiv)
 #check we have an even data frame
 ddply(allData,.(Year),summarise,nuLines=length(unique(LinjeID)))
 #725 lines
+
+save(allData,file="allData.RData")
 
 ```
 ```{r}

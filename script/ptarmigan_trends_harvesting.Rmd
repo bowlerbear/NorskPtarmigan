@@ -11,6 +11,21 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```
 
+get predicted counts  
+```{r}
+ load("out1_ptarmigan_noTrends.RData")  
+ out<-data.frame(out1$mean$Density)  
+ out<-cbind(siteInfo,out)#from the trends_analysis file  
+ library(reshape2)  
+ outMelt<-melt(out,id=c("Line","Fylkesnavn","Rapporteringsniva","LinjeID","originalLinjeID","Kommunenavn"))
+ names(outMelt)[7:8]<-c("Year","Density")  
+ outMelt$Fylkesnavn<-sapply(outMelt$Line,function(x)strsplit(as.character(x),"_")[[1]][1])  
+ outMelt$Year<-as.numeric(gsub("X","",as.character(outMelt$Year))) 
+ outMelt$Year<-outMelt$Year + 2006  
+ 
+```
+
+
 Plot harvesting data at the municipality level
 
 ```{r}
@@ -115,6 +130,16 @@ qplot(Year,harvestBag/area/meanDensity,
       facets=~Fylkesnavn,geom=c("point"))+
       stat_smooth(method="lm",se=F)
 
+qplot(Year,harvestBag/area/meanDensity,
+      data=densityKommunenavn,
+      group=Kommunenavn,
+      colour=Kommunenavn,
+      geom=c("point"))+
+      facet_wrap(~Fylkesnavn,scales="free")+
+      stat_smooth(method="lm",se=F)+
+      theme_light()+
+      theme(legend.position="none")
+
 ```
 
 Decision:
@@ -137,9 +162,11 @@ nuIndivs$kommuneHarvestBag[is.na(nuIndivs$kommuneHarvestBag)]<-nuIndivs$predHarv
 my.harvest <- acast(nuIndivs,Line~Year,value.var="kommuneHarvestBag")
 bugs.data$harvestBag<-my.harvest
 
+#get area data
+siteInfo$originalLinjeID<-sapply(siteInfo$Line,function(x)strsplit(as.character(x),"-")[[1]][2])
+siteInfo$Kommunenavn<-out$Kommunenavn[match(siteInfo$originalLinjeID,out$originalLinjeID)]
 siteInfo$countyArea<-densityKommunenavn$area[match(siteInfo$Kommunenavn,densityKommunenavn$Kommunenavn)]
 bugs.data$countyArea<-siteInfo$countyArea
-
 bugs.data$n.Kommune<-length(unique(nuIndivs$Kommunenavn))
 bugs.data$Kommune<-as.numeric(as.factor(siteInfo$Kommunenavn))
 
@@ -158,11 +185,33 @@ out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS_ar1_harv
                n.chains=3, n.burnin=2000,n.iter=10000,parallel = T)
 
 ```
+
 ```{r}
 
 print(out1,2)
 
 ```
+
+Simple model without ar1 term
+
+```{r}
+
+#year one priors
+bugs.data$year1<-as.numeric(apply(my.n,1,function(x)ifelse(!is.na(x[1]),x[1],max(x,na.rm=T))))
+bugs.data$year1[bugs.data$year1==0]<-1
+
+params <- c("int.d","harvest.effect","line.d.sd","year.d.sd","site.d.sd")
+
+out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariate_harvestingImputed.txt", n.thin=nt,
+               n.chains=3, n.burnin=2000,n.iter=10000,parallel = T)
+
+```
+```{r}
+
+print(out1,2)
+
+```
+
 (2) Add the new variables to the bugs data (but this time with missing data):
 
 ```{r}

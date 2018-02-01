@@ -217,8 +217,14 @@ library(ggplot2)
 
 ggplot(subset(mydataSummmary, Latitude > 50 & Latitude < 75))+
   geom_point(aes(x=Longitude,y=Latitude,colour=log(totalAdults)))+
-  facet_wrap(~Year)+
-  scale_colour_gradient(low="blue",high="red")
+  facet_wrap(~Year)
+  #scale_colour_gradient(low="blue",high="red")
+
+#density of records
+mydata$Fylkesnavn <- factor(mydata$Fylkesnavn)
+ggplot(subset(mydata, Latitude > 50 & Latitude < 75))+
+  geom_point(aes(x=Longitude,y=Latitude,colour=Fylkesnavn),alpha=0.5)+
+  theme_minimal()
 
 ```
 

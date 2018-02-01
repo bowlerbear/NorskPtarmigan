@@ -161,12 +161,17 @@ save(out1,file="out1_ptarmigan_noTrends.RData")
 #Have they converged
 out1$Rhat$meanNumbers.Site
 densityDF<-data.frame(meanNu=out1$mean$Density)
-densityDF$Line<-1:nrow(densityDF)
-densityDF$Site<-bugs.data$site
-densityDF<-melt(densityDF,id=c("Line","Site"))
-levels(densityDF$variable)<-1:11
-densityDF$Year<-as.numeric(as.character(densityDF$variable))
-qplot(Year,log(value+1),data=densityDF,group=Line,colour=Line,geom="path",facets=~Site)+theme(legend.position="none")
+densityDF$LinjeID<-1:nrow(densityDF)
+densityDF<-merge(densityDF,siteInfo,by="LinjeID")
+temp<-sapply(densityDF$Line.y,function(x)strsplit(as.character(x),"-")[[1]][1])
+densityDF$Fylkesnavn<-sapply(temp,function(x)strsplit(x,"_")[[1]][1])
+densityDF$Rapporteringsniva<-sapply(temp,function(x)strsplit(x,"_")[[1]][2])
+densityDF<-melt(densityDF,id=c("LinjeID","Line.x","Line.y","Fylkesnavn","Rapporteringsniva"))
+densityDF$variable<-gsub("meanNu.","",densityDF$variable)
+densityDF$Year<-as.numeric(as.character(densityDF$variable))+2006
+qplot(Year,value,data=densityDF,group=LinjeID,colour=Rapporteringsniva,geom="path",facets=~Fylkesnavn)+
+  theme_light()+
+  theme(legend.position="none")+ylab("Predicted Density km2")
 #each site seems to have its own dynamic over time as specified by the model
 ```
 
