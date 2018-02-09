@@ -1,12 +1,9 @@
 
-#distance model
-cat("
     model{
 
     #################
     #Detection model#
     #################
-
     pi <- 3.141593
     
     # priors for fixed effect parms for half-normal detection parm sigma
@@ -45,7 +42,7 @@ cat("
     ##################
     #Group size model#
     ##################
-    
+
     #priors
     int.gs ~ dnorm(0,0.001)    
     
@@ -60,67 +57,34 @@ cat("
     year.sd ~ dunif(0,10)
     year.tau <- pow(year.sd,-2)
     for(t in 1:n.Years){
-      random.gs.year[t] ~ dnorm(0,year.tau)
+    random.gs.year[t] ~ dnorm(0,year.tau)
     }
-    
-    #random site2 effect
-    site.sd ~ dunif(0,10)
-    site.tau <- pow(site.sd,-2)
-    for(t in 1:n.Sites2){
-      random.gs.site2[t] ~ dnorm(0,site.tau)
+
+    #long-term trend with random site effects
+    long.term.trend ~ dnorm(0,0.001)
+    trend.line.sd ~ dunif(0,10)
+    trend.line.tau <- pow(trend.line.sd,-2)
+    for(j in 1:n.Lines){
+      random.gs.trend.line[j] ~ dnorm(0,trend.line.tau)
     }
-    
-    #random line/year effect
-    line.year.sd ~ dunif(0,10)
-    line.year.tau <- pow( line.year.sd,-2)
-    for(t in 1:n.LineYear){
-      random.gs.line.year[t] ~ dnorm(0, line.year.tau)
-    }
-    
-    
+
+
     #Model
     #for each detection, model group size
     for(i in 1:N){
-    
-    GroupSize[i] ~ dpois(expGroupSize[i])
-    log(expGroupSize[i]) <- int.gs + random.gs.year[detectionYear[i]] + 
-                            random.gs.line[detectionLine[i]]+
-                            random.gs.site2[detectionSite[i]]+
-                            random.gs.line.year[detectionLineYear[i]]
-    
+      GroupSize[i] ~ dpois(expGroupSize[i])
+      log(expGroupSize[i]) <- int.gs + random.gs.year[detectionYear[i]] + 
+                                      random.gs.line[detectionLine[i]] +
+                                      long.term.trend * detectionYear[i] +
+                                      detectionYear[i] * random.gs.trend.line[detectionLine[i]]
     }
-    
+
     #using this model, get predicted group size for each line and year
     for(t in 1:n.Years){
       for(j in 1:n.Lines){
-        log(predGroupSize[j,t]) <- int.gs + random.gs.year[t] + random.gs.line[j] 
-                              + random.gs.site2[site2[j]]+
-                              + random.gs.line.year[t*j]
-      }
-    }
-
-    ###########################
-    #Model harvesting pressure#
-    ###########################
-
-    #standardize each harvest bag to year one
-    for(j in 1:n.Line){
-      for(t in 1:n.Years){
-        harvestBagS[j,t] <- harvestBagS[j,1]
-      }
-    }
-
-    for(j in 1:n.Line){
-      for(t in 1:n.Years){
-        harvestPressure[t] <- harvestBag[j,t]/countyArea[j,t]/Density[j,t]
-   for(j in 1:n.Line){
-      for(t in 1:n.Years){
-
-    #for rate change per year for each site
-    #minus all by the first year rate
-    for(j in 1:n.Line){
-      for(t in 1:n.Years){
-          harvestPressureS[j,t] <- harvestPressure[j,t]-harvestPressure[j,1]
+        log(predGroupSize[j,t]) <- int.gs + random.gs.year[t] + random.gs.line[j] + 
+                                    random.gs.trend.line[j] * t +
+                                    long.term.trend * t
       }
     }
 
@@ -145,6 +109,14 @@ cat("
       random.d.site[j] ~ dnorm(0,site.d.tau)
     }
 
+    #random site2 effect
+    site2.d.sd ~ dunif(0,10)
+    site2.d.tau <- pow(site2.d.sd,-2)
+    for(j in 1:n.Sites2){
+      random.d.site2[j] ~ dnorm(0,site2.d.tau)
+
+    }
+    
     #random time effect
     year.d.sd ~ dunif(0,10)
     year.d.tau <- pow(year.d.sd,-2)
@@ -161,17 +133,26 @@ cat("
       }
     }
 
+    #random site2 and time effect
+    s2year.d.sd ~ dunif(0,10)
+    s2year.d.tau <- pow(s2year.d.sd,-2)
+    for(j in 1:n.Sites2){
+      for(t in 1:n.Years){
+        random.d.s2year[j,t] ~ dnorm(0,s2year.d.tau)
+      }
+    }
+
+    #slopes
+    beta.auto ~ dunif(-2,2)
+    #beta.covariateF ~ dnorm(0,0.001)
+    beta.covariateO ~ dnorm(0,0.001)
+
     #Observation model:
     for(j in 1:n.Lines){
       for(t in 1:n.Years){
         NuIndivs[j,t] ~ dpois(expNuIndivs[j,t])
         expNuIndivs[j,t] <- (Density[j,t] * (TransectLength[j,t]/1000 * predESW[j,t]/1000 * 2))
       }}
-
-
-    #slopes
-    beta.auto ~ dunif(-1,1)
-    harvest.effect ~ dnorm(0,0.001)
 
     #State model
     for(j in 1:n.Lines){
@@ -180,8 +161,10 @@ cat("
       #linear predictor on density
         log(Density[j,t+1]) <- int.d + 
                             beta.auto * log(Density[j,t]) +
-                            harvest.effect * harvestPressureS[j,t] +
-                            random.d.line[j] + random.d.year[t] + random.d.site[site[j]]
+                            random.d.line[j] + 
+                            #beta.covariateF * propForest[j] + 
+                            beta.covariateO * propOpen[j] +
+                            random.d.year[t]
     }}
 
     #Priors on the first year of density
@@ -189,26 +172,12 @@ cat("
         Density[j,1] ~ dpois(year1[j])
     }
 
-  #calculate the Bayesian p-value
-    e <- 0.0001
+   #calculate the Bayesian p-value
     for(j in 1:n.Lines){
       for(t in 1:n.Years){
-    # Fit assessments: Chi-squared test statistic and posterior predictive check
-    chi2[j,t] <- pow((NuIndivs[j,t] - expNuIndivs[j,t]),2) / (sqrt(expNuIndivs[j,t])+e)         # obs.
-    expNuIndivs.new[j,t] ~ dpois(expNuIndivs[j,t])      # Replicate (new) data set
-    chi2.new[j,t] <- pow((expNuIndivs.new[j,t] - expNuIndivs[j,t]),2) / (sqrt(expNuIndivs[j,t])+e) # exp
+        expNuIndivs.new[j,t] ~ dpois(expNuIndivs[j,t])      
       }
     }
 
-    # Add up discrepancy measures for entire data set
-    for(t in 1:n.Years){
-      fit.t[t] <- sum(chi2[,t])                     
-      fit.new.t[t] <- sum(chi2.new[,t])             
     }
-
-    fit <- sum(fit.t[])                     # Omnibus test statistic actual data
-    fit.new <- sum(fit.new.t[])             # Omnibus test statistic replicate data
-
-
-    }
-    ",fill=TRUE,file="combined_model_covariate_ar1_harvesting.txt")
+    

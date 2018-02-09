@@ -60,11 +60,30 @@
     random.gs.year[t] ~ dnorm(0,year.tau)
     }
 
+    #random site2 effect
+    site.sd ~ dunif(0,10)
+    site.tau <- pow(site.sd,-2)
+    for(t in 1:n.Sites2){
+      random.gs.site2[t] ~ dnorm(0,site.tau)
+    }
+
+    #random line/year effect
+    line.year.sd ~ dunif(0,10)
+    line.year.tau <- pow( line.year.sd,-2)
+    for(t in 1:n.LineYear){
+      random.gs.line.year[t] ~ dnorm(0, line.year.tau)
+    }
+
+
     #Model
     #for each detection, model group size
     for(i in 1:N){
       GroupSize[i] ~ dpois(expGroupSize[i])
-      log(expGroupSize[i]) <- int.gs + random.gs.year[detectionYear[i]] + random.gs.line[detectionLine[i]]  
+      log(expGroupSize[i]) <- int.gs + random.gs.year[detectionYear[i]] + 
+                              random.gs.line[detectionLine[i]]+
+                              random.gs.site2[detectionSite[i]]+
+                              random.gs.line.year[detectionLineYear[i]]
+                              
     }
 
     #using this model, get predicted group size for each line and year
