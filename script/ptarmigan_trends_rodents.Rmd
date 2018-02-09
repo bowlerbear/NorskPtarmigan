@@ -14,10 +14,12 @@ knitr::opts_chunk$set(echo = TRUE)
 #Get Rodent data
 
 ```{r results='asis'}
+library(ggplot2)
+allData$SettSmagnager<-as.numeric(allData$SettSmagnager)
 
 #get averag per fylke
 rodentData <- ddply(allData,.(Year,Fylkesnavn),summarise,
-                    rodents = mean(as.numeric(SettSmagnager),na.rm=T))
+                    rodents = mean(SettSmagnager,na.rm=T))
 
 #plotting
 qplot(Year,rodents,data=rodentData,geom=c("point","line"))+
@@ -26,7 +28,7 @@ qplot(Year,rodents,data=rodentData,geom=c("point","line"))+
 
 #by rapport...
 rodentData <- ddply(allData,.(Year,Fylkesnavn,Rapporteringsniva),summarise,
-                    rodents = mean(as.numeric(SettSmagnager),na.rm=T),
+                    rodents = mean(SettSmagnager,na.rm=T),
                     totalIndiv=mean(totalIndiv,na.rm=T))
 
 library(boot)
@@ -91,7 +93,7 @@ bugs.data$spatialMatrix2 <- bugs.data$spatialMatrix^2#also add a polynomial term
 #temporal
 tMmelted<-melt(bugs.data$temporalMatrix)
 allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
-                                           interaction(tMmelted$X2,tMmelted$X1))]
+                                           interaction(tMmelted$Var2,tMmelted$Var1))]
 
 ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
   geom_point(aes(colour=factor(Fylkesnavn)))+
@@ -102,7 +104,7 @@ ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
 #spatial
 tMmelted<-melt(bugs.data$spatialMatrix)
 allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
-                                           interaction(tMmelted$X2,tMmelted$X1))]
+                                           interaction(tMmelted$Var2,tMmelted$Var1))]
 
 ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
   geom_point(aes(colour=factor(Fylkesnavn)))+
@@ -117,7 +119,7 @@ ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
 ```{r results='asis'}
 tMmelted<-melt(bugs.data$temporalMatrix)
 allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
-                                           interaction(tMmelted$X2,tMmelted$X1))]
+                                           interaction(tMmelted$Var2,tMmelted$Var1))]
 
 ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
   geom_point(aes(colour=factor(OmradeID)))+
@@ -128,7 +130,7 @@ ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
 
 tMmelted<-melt(bugs.data$spatialMatrix)
 allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
-                                           interaction(tMmelted$X2,tMmelted$X1))]
+                                           interaction(tMmelted$Var2,tMmelted$Var1))]
 
 ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
   geom_point(aes(colour=factor(OmradeID)))+
@@ -194,3 +196,91 @@ save(out1,file="out1_rodent.RData")
 
 ```
 
+#modelling the probability see a rodent
+
+```{r warning=FALSE}
+
+my.rodents <- acast(allData,Line~Year,value.var="SettSmagnager",fun=max,na.rm=T)
+my.rodents[is.infinite(my.rodents)]<-NA
+bugs.data$rodentData <- my.rodents
+
+#model the variation with random effects
+source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
+
+params <- c("int.r","line.r.sd","year.r.sd","site2.r.sd","year.site2.r.sd",
+            "spatialRodents","temporalRodents")
+
+#inits <- function(){list(int.r)}
+
+setwd("/data/home/diana.bowler/NorskPtarmigan/models")
+out1 <- jags(bugs.data, inits=NULL, params, "rodent_model.txt", n.thin=nt,
+               n.chains=3, n.burnin=1000,n.iter=5000,parallel = T)
+
+```
+#Print the output
+
+```{r}
+print(out1,2)
+setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
+save(out1,file="out1_rodent_model_only.RData")
+
+```
+
+#Compare the random effects with the % data
+
+```{r}
+
+#compare spatial effects
+randomDF <- data.frame(rodentProb=out1$mean$spatialRodents)
+randomDF <- cbind(randomDF,siteInfo)
+randomDF$matchingSite <- sapply(randomDF$Line,function(x)strsplit(as.character(x),"#")[[1]][1])
+randomDF <- merge(randomDF,spatialDF,by.x="matchingSite",by.y="LinjeID")
+
+qplot(rodentProb,value,data=randomDF)+ggtitle("spatial")#correlates pretty well!!
+      
+qplot(rodentProb,value,data=randomDF,colour=Rapporteringsniva)+
+  facet_wrap(~Fylkesnavn)+ggtitle("spatial")+
+  theme(legend.position="none")
+
+#compare temporal effects
+randomDF<-data.frame(out1$summary[grepl("temporalRodents",row.names(out1$summary)),])
+randomDF$Param<-sub(".*\\[([^][]+)].*", "\\1", row.names(randomDF))
+randomDF$matchingSite<-as.numeric(sapply(randomDF$Param,function(x)strsplit(x,",")[[1]][1]))
+randomDF <- merge(randomDF,siteInfo,by.x="matchingSite",by.y="LinjeID")
+randomDF$Year<-as.numeric(sapply(randomDF$Param,function(x)strsplit(x,",")[[1]][2]))+2006
+tMmelted<-melt(bugs.data$temporalMatrix)
+randomDF<-merge(randomDF,tMmelted,by.x=c("Line","Year"),by.y=c(names(tMmelted)[1:2]))
+
+qplot(mean,value,data=randomDF)+ggtitle("temporal")#correlates pretty well!!
+      
+qplot(mean,value,data=randomDF,colour=Rapporteringsniva)+
+  facet_wrap(~Fylkesnavn)+ggtitle("temporal")+
+  theme(legend.position="none")
+#correlates really well!!
+
+```
+
+
+```{r}
+
+source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
+
+#year one priors
+bugs.data$year1<-as.numeric(apply(my.n,1,function(x)ifelse(!is.na(x[1]),x[1],max(x,na.rm=T))))
+bugs.data$year1[bugs.data$year1==0]<-1
+
+params <- c("int.d","beta.auto","beta.covariateS","beta.covariateT")
+
+setwd("/data/home/diana.bowler/NorskPtarmigan/models")
+out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS_ar1_rodents.txt", n.thin=nt,n.chains=3, n.burnin=5000,n.iter=20000,parallel = T)
+
+```
+
+Get results
+
+```{r}
+print(out1,2)
+setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
+save(out1,file="out1_rodent2.RData")
+
+```

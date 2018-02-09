@@ -14,8 +14,10 @@ knitr::opts_chunk$set(echo = TRUE)
 Import the data - check the subsetting is as wanted
 
 ```{r}
-library(knitr)
-knit("ptarmigan_formatting.Rmd")
+#library(knitr)
+#knit("ptarmigan_formatting.Rmd")
+load("/data/home/diana.bowler/NorskPtarmigan/allData.RData")
+head(allData)
 
 ```
 
@@ -26,8 +28,18 @@ Organise the data
 
 ```{r, warning=FALSE}
 
+library(magrittr)
+library(plyr); library(dplyr)
+
 #subset
 allData<-subset(allData,Year>2006)
+
+#remove hyphens for help with subsetting
+allData$Fylkesnavn<-gsub("-"," ",allData$Fylkesnavn)
+allData$Rapporteringsniva<-gsub("-"," ",allData$Rapporteringsniva)
+
+#change kommune name for Dovre Fjellstyre
+allData$Kommunenavn[which(allData$Kommunenavn=="Dovre Fjellstyrene")]<-"Dovre"
 
 #get number of individuals
 nuIndivs <-
@@ -68,7 +80,8 @@ bugs.data <- list(#For the state model
                   n.Lines = length(unique(nuIndivs$LinjeID)),
                   n.Years = length(unique(nuIndivs$Year)),
                   n.Sites = length(unique(nuIndivs$Fylkesnavn)),
-                  n.Sites2 = length(unique(nuIndivs$Rapporteringsniva)),
+                  n.Sites2 = length(unique(interaction(nuIndivs$Rapporteringsniva,nuIndivs$Fylkesnavn))),
+                  n.LineYear = length(unique(nuIndivs$LinjeID))*length(unique(nuIndivs$Year)),
                   line = siteInfo$LinjeID,
                   site = siteInfo$Fylkesnavn,
                   site2 = siteInfo$Rapporteringsniva, 
@@ -83,13 +96,16 @@ bugs.data <- list(#For the state model
                   GroupSize = allDetections$totalIndiv,
                   zeros.dist = rep(0,nrow(allDetections)),
                   detectionLine =as.numeric(factor(allDetections$LinjeID)),
-                  detectionYear = as.numeric(factor(allDetections$Year)))
+                  detectionYear = as.numeric(factor(allDetections$Year)),
+                  detectionSite = as.numeric(factor(allDetections$Rapporteringsniva)),
+                  detectionLineYear = as.numeric(factor(interaction(allDetections$LinjeID,allDetections$Year))))
 
 ```
 
 Plot the data
 
 ```{r results='asis'}
+library(ggplot2)
 
 ggplot(nuIndivs,aes(x=Year,y=nuTotal,group=LinjeID))+
   geom_point(aes(colour=LinjeID))+
@@ -98,7 +114,17 @@ ggplot(nuIndivs,aes(x=Year,y=nuTotal,group=LinjeID))+
   theme(legend.position="none")
 
 ```
+#look also at trends in the group size
 
+```{r}
+
+ggplot(subset(allData,!is.na(totalIndiv)),aes(x=Year,y=totalIndiv,group=LinjeID))+
+  geom_point(aes(colour=LinjeID))+
+  geom_line(aes(colour=LinjeID))+
+  facet_wrap(~Fylkesnavn)+
+  theme(legend.position="none")
+
+```
 
 Run model in JAGS - with a long-term trend term
 
@@ -129,29 +155,29 @@ print(out1,2)
 
 ```
 
-Fit the model without the trend term and just random year to year variation, that also varies by fylk
+Fit the model without the trend term and just random year to year variation, that also varies by fylk and rapp
 
 Run model in JAGS
 
 ```{r}
+source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
 
 library(jagsUI)
 
-#inits <- function(){list(trend = dunif(-2,0))}
+params <- c("line.d.sd","year.d.sd","site.d.sd","site2.d.sd","syear.d.sd","s2year.d.sd","Density","meanNumbers")
 
-params <- c("Density","meanNumbers")
-
+setwd("/data/home/diana.bowler/NorskPtarmigan/models")
 out1 <- jags(bugs.data, inits=NULL, params, "combined_model_noTrend.txt", n.thin=nt,
-               n.chains=3, n.burnin=2000,n.iter=10000)
+               n.chains=3, n.burnin=1000,n.iter=5000,parallel = T)
 ```
 
 
 ```{r results='asis'}
-library(ggmcmc)
+#library(ggmcmc)
 #ggs_traceplot(ggs(out1$samples)) 
 
 print(out1,2)
-save(out1,file="out1_ptarmigan_noTrends.RData")
+save(out1,file="out1_ptarmigan_noTrends2.RData")
 
 ```
 
@@ -159,77 +185,61 @@ save(out1,file="out1_ptarmigan_noTrends.RData")
 
 ```{r results='asis'}
 #Have they converged
-out1$Rhat$meanNumbers.Site
+setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
+load("out1_ptarmigan_noTrends2.RData")
 densityDF<-data.frame(meanNu=out1$mean$Density)
 densityDF$LinjeID<-1:nrow(densityDF)
 densityDF<-merge(densityDF,siteInfo,by="LinjeID")
-temp<-sapply(densityDF$Line.y,function(x)strsplit(as.character(x),"-")[[1]][1])
+temp<-sapply(densityDF$Line,function(x)strsplit(as.character(x),"-")[[1]][1])
 densityDF$Fylkesnavn<-sapply(temp,function(x)strsplit(x,"_")[[1]][1])
 densityDF$Rapporteringsniva<-sapply(temp,function(x)strsplit(x,"_")[[1]][2])
-densityDF<-melt(densityDF,id=c("LinjeID","Line.x","Line.y","Fylkesnavn","Rapporteringsniva"))
+densityDF$originalLinjeID<-sapply(densityDF$Line,function(x)strsplit(as.character(x),"-")[[1]][2])
+densityDF<-melt(densityDF,id=c("LinjeID","Line","Fylkesnavn","Rapporteringsniva","originalLinjeID"))
 densityDF$variable<-gsub("meanNu.","",densityDF$variable)
 densityDF$Year<-as.numeric(as.character(densityDF$variable))+2006
+densityDF$value<-as.numeric(as.character(densityDF$value))
 qplot(Year,value,data=densityDF,group=LinjeID,colour=Rapporteringsniva,geom="path",facets=~Fylkesnavn)+
   theme_light()+
   theme(legend.position="none")+ylab("Predicted Density km2")
 #each site seems to have its own dynamic over time as specified by the model
 ```
 
-#plot by site
-
-```{r, results='asis'}
-load("out1_ptarmigan_trends.RData") #if not running the model above
-densityDF<-data.frame(meanNu=out1$mean$meanNumbers.Site)
-densityDF$Site<-levels(factor(siteInfo$Fylkesnavn))
-densityDF<-melt(densityDF,id=c("Site"))
-levels(densityDF$variable)<-2006+1:11
-densityDF$Year<-as.numeric(as.character(densityDF$variable))
-qplot(Year,value,data=densityDF,geom=c("path","point"),facets=~Site)+theme(legend.position="none")
-
-```
-
-#look at relationships between abundance and mammals/climate at the level of the fylk
-
-```{r, results="asis"}
-setwd("C:/Users/diana.bowler/OneDrive - NINA/Alpine/Ptarmigan/Scripts")
-load("climdataFylk.RData")
-load("mammalsFylk.RData")
-
-densityDF<-merge(densityDF,climdataFylk,by.x=c("Site","Year"),by.y=c("Fylkesnavn","Year"),all=T)
-densityDF<-merge(densityDF,mammalsFylk,by.x=c("Site","Year"),by.y=c("Fylkesnavn","Year"),all=T)
-
-qplot(meanSpring,log(value),data=densityDF)+facet_wrap(~~Site,scales="free")
-qplot(logit(propMammals),log(value),data=densityDF)+facet_wrap(~~Site,scales="free")
-qplot(meanSpring,log(value),data=densityDF)
-qplot(logit(propMammals),log(value),data=densityDF)
-
-```
-
-
-#investigate which spatial cluster in the most important
-
-#see what inla says:
-
+Look at spatial pattern
 ```{r}
-#nuIndivs$maxTransectLength[is.na(nuIndivs$TransectLength)]<-0
+#get average abundance per linjeID
+linePredictions <- ddply(densityDF,.(originalLinjeID),summarise,density=mean(value))
 
-library(INLA)
-inla1<-inla(nuTotal ~ factor(Year)+
-              f(as.numeric(factor(nuIndivs$LinjeID)),model="iid")+
-              f(as.numeric(factor(nuIndivs$Fylkesnavn)),model="iid")+
-              f(as.numeric(factor(nuIndivs$OmradeNavn)),model="iid"),
-              data=nuIndivs)
-summary(inla1)
+#get line spatial info
+setwd("/data/home/diana.bowler/climaticFiles")
+load("Lines_utm.RData")
+
+#add mean densities and remove those without mean density data
+Lines_utm$density <- linePredictions$density[match(Lines_utm@data$LinjeID,linePredictions$originalLinjeID)]
+Lines_utm <- subset(Lines_utm,!is.na(density))
+
+#plot it
+library(sp)
+mySLDF_fortify <- fortify(Lines_utm)
+mySLDF_fortify$density <- linePredictions$density[match(mySLDF_fortify$id,linePredictions$originalLinjeID)]
+
+ggplot(mySLDF_fortify, aes(x=long, y=lat, group=group,colour=log(density+1))) + 
+  geom_path(size=rel(3)) +
+  theme_minimal()+
+  scale_colour_gradient2(low="red",mid="gray90",high="dodgerblue",midpoint=2.51)+
+  xlab("x")+ylab("y")
+
+#get temperature map
+setwd("/data/home/diana.bowler/GeoSpatialData/AdministrativeUnits/Norway_AdministrativeUnits/Processed")
+counties<-readOGR(getwd(),layer="Norway_ADM_fylke_FLATE")
+counties<-spTransform(counties,CRS(proj4string(Lines_utm)))
+plot(counties)
+counties@data$id <- 1:nrow(counties@data)
+counties.fort <- fortify(counties, region='id')
+ggplot(counties.fort, aes(x = long, y = lat, group = id)) + 
+  geom_polygon(fill="white")+
+  geom_path(data=mySLDF_fortify, aes(x=long, y=lat, group=group,colour=log(density+1)),size=rel(3)) +
+  scale_colour_gradient2(low="red",mid="gray90",high="dodgerblue",midpoint=2.51)+
+  xlab("x")+ylab("y")
 
 ```
 
-```{r}
-library(INLA)
-inla1<-inla(nuTotal ~ factor(Year)+
-              f(as.numeric(factor(nuIndivs$LinjeID)),model="iid")+
-              f(as.numeric(factor(nuIndivs$Fylkesnavn)),model="iid")+
-              f(as.numeric(factor(nuIndivs$Rapporteringsniva)),model="iid"),
-              data=nuIndivs)
-summary(inla1)
-
-```

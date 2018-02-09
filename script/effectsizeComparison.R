@@ -14,3 +14,9 @@ out1$summary[grepl("beta",row.names(out1$summary)),]
 
 load("out1_rodent.RData")
 out1$summary[grepl("beta",row.names(out1$summary)),]
+
+load("out1_ROS.RData")
+out1$summary[grepl("beta",row.names(out1$summary)),]
+
+load("out1_winterOnset.RData")
+out1$summary[grepl("beta",row.names(out1$summary)),]

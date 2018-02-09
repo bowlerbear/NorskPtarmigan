@@ -1,0 +1,114 @@
+---
+title: "detection model"
+author: "Diana Bowler"
+date: "2 november 2017"
+output: html_document
+---
+Get data
+
+```{r}
+
+load("/data/home/diana.bowler/NorskPtarmigan/allData.RData")
+head(allData)
+
+```
+
+Get population data
+
+```{r, warning=FALSE}
+
+library(magrittr)
+library(plyr); library(dplyr)
+
+#subset
+allData<-subset(allData,Year>2006)
+
+#remove hyphens for help with subsetting
+allData$Fylkesnavn<-gsub("-"," ",allData$Fylkesnavn)
+allData$Rapporteringsniva<-gsub("-"," ",allData$Rapporteringsniva)
+
+#change kommune name for Dovre Fjellstyre
+allData$Kommunenavn[which(allData$Kommunenavn=="Dovre Fjellstyrene")]<-"Dovre"
+
+#Create a data frame with only detection
+allDetections<-subset(allData,totalIndiv>0&!is.na(totalIndiv))
+allDetections<-arrange(allDetections,LinjeID)
+head(allDetections)
+
+#add on to this the habitat data
+setwd("/data/home/diana.bowler/NorskPtarmigan/additional_data_files")
+load("lineSummary.RData")
+allDetections$propForest<-lineSummary$propForest[match(allDetections$LinjeID,lineSummary$LinjeID)]
+
+#also get precipitation data for time period of data collection
+#same for precipitation
+#setwd("/data/home/diana.bowler/climaticFiles/precipData")
+#tempFiles <- list.files(getwd())
+#precipData <- ldply(tempFiles, function(x){
+#      temp <- read.delim(x)
+#      temp <- subset(temp,site%in%nuIndivs$LinjeID)
+#      temp$Date <- gsub("precipitation_","",temp$map)
+#      temp$Date <- as.Date(temp$Date, format="%Y_%m_%d")
+#      temp$day <- day(temp$Date)
+#      temp$month <- month(temp$Date)
+#      subset(temp,month%in%c(7,8))#months of data collection
+#})
+setwd("/data/home/diana.bowler/NorskPtarmigan/additional_data_files")
+#save(precipData,file="precipData_surveyperiod.RData")
+load("precipData_surveyperiod.RData")
+allDetections$precip<-as.numeric(precipData$precip[match(interaction(allDetections$LinjeID,allDetections$Date),
+                                                  interaction(precipData$site,precipData$Date))])
+allDetections$precipDay<-ifelse(allDetections$precip>0,1,0)
+table(allDetections$precipDay)
+
+hist(allDetections$totalIndiv)
+hist(allDetections$precip)
+hist(sqrt(allDetections$precip+1))
+hist(allDetections$propForest)
+hist(allDetections$LinjeAvstand)
+
+#Organise fur bugs
+bugs.data <- list(W = 200,
+                  N = nrow(allDetections),
+                  y = allDetections$LinjeAvstand,
+                  detectionGroupSize = log(allDetections$totalIndiv+1),
+                  GroupSize = allDetections$totalIndiv,
+                  propForest = allDetections$propForest,
+                  precip = sqrt(allDetections$precip+1),
+                  zeros.dist = rep(0,nrow(allDetections)),
+                  Time = log(allDetections$timeSince+1),
+                  detectionLine =as.numeric(factor(allDetections$LinjeID)),
+                  detectionYear = as.numeric(factor(allDetections$Year)))
+
+```
+
+(Model)
+
+```{r cache = TRUE}
+
+source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
+
+params <- c("b.df.0","b.group.size","b.forest","esw")
+  
+#inits <- function(){list(b.df.0 = runif(1,2,5), 
+#                         B.gs.0 = runif(1,0.2,3),
+#                         B.n.0 = runif(1,0.5,5))}
+  
+setwd("/data/home/diana.bowler/NorskPtarmigan/models")
+out1 <- jags(bugs.data, inits=NULL, params, "detection_model.txt", n.thin=nt,
+               n.chains=nc, n.burnin=200,n.iter=1000)
+
+```
+
+#Look at summary ouput from this model
+
+```{r}
+setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
+#out1$summary[grepl("esw",row.names(out1$summary)),]
+#summary(out1$mean$esw)
+
+#print(out1,3)
+#Size effect but not time effect
+
+```
+

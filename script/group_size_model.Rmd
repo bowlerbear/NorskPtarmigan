@@ -1,0 +1,52 @@
+---
+title: "ptarmigan_trends_analysis"
+author: "Diana Bowler"
+date: "2 november 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+Look at trends in the group size
+
+```{r}
+
+ggplot(subset(allData,!is.na(totalIndiv)),aes(x=Year,y=totalIndiv,group=LinjeID))+
+  geom_point(aes(colour=LinjeID))+
+  geom_line(aes(colour=LinjeID))+
+  facet_wrap(~Fylkesnavn)+
+  theme(legend.position="none")
+
+```
+
+Run model in JAGS 
+
+```{r}
+
+source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
+
+setwd("/data/home/diana.bowler/NorskPtarmigan/models")
+
+params <- c("int.gs","line.sd","site.sd","year.sd","line.year.sd","predGroupSize")
+
+out1 <- jags(bugs.data, inits=NULL, params, "group_size_model.txt", n.thin=nt,
+               n.chains=3, n.burnin=1000,n.iter=5000)
+```
+
+Print output
+
+```{r results='asis'}
+
+#library(ggmcmc)
+#ggs_traceplot(ggs(out1$samples)) 
+
+print(out1,2)
+
+```
+
+
+

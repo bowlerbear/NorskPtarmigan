@@ -11,17 +11,161 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```
 
-Get the habitat data:
+Get Habitat Data per line
 
 ```{r}
 
-cdir<-"R:/Prosjekter/AlpineBirds/LagopusPopulationMonitoring"
-habitatdata <- read.delim(paste(cdir,"Veg_cover.csv",sep="/"))
+habitatdata <- read.delim(paste("/data/home/diana.bowler/NorskPtarmigan/additional_data_files","habitatInfo.txt",sep="/"))
+table(habitatdata$HabitatClass)
+#17 is the most sampled area - Fresh heather and dwarf-shrub communities
 
-#exclude habitat data if mostly NAs
+#get also the legend
+habitats<- read.delim(paste("/data/home/diana.bowler/NorskPtarmigan/additional_data_files","habitatLegend.txt",
+                            sep="/"))
 
-#get proportion of area that is forest for each plot
+```
 
+Where are the ptarmigan?
+
+```{r}
+
+lineSummary <-
+  allData%>%
+  group_by(LinjeID) %>%
+  summarise(nuTotal = sum(totalIndiv,na.rm=T))
+#ptarmigan are present at all lines in pop data set
+
+```
+
+Combine this info with the habitat data
+
+```{r}
+
+lineSummary<-merge(lineSummary,habitatdata,by.x="LinjeID",by.y="ID",all=T)
+lineSummary$Presence<-ifelse(is.na(lineSummary$nuTotal),0,1)
+lineSummary<-merge(lineSummary,habitats,by.x="HabitatClass",by.y="Code",all.x=T)
+lineSummary$nuTotal[is.na(lineSummary$nuTotal)]<-0
+lineSummary$HabitatType<-ifelse(lineSummary$HabitatClass<9,"Forest","Open")
+lineSummary$HabitatType[lineSummary$HabitatClass%in%c(22:25)]<-"Non-habitat"
+
+```
+
+Compare presence and absence proportions
+
+```{r}
+
+table(lineSummary$Presence,lineSummary$HabitatClass)
+
+sort(table(lineSummary$Presence,lineSummary$Habitat)[2,]/
+table(lineSummary$Habitat))
+
+```
+
+Draw a bar chart
+
+```{r}
+
+dataSummary<-ddply(lineSummary,.(Habitat,HabitatType),summarise,Presences=sum(Presence),Absences=length(Presence[Presence==0]))
+dataSummaryMelt<-melt(dataSummary,id=c("Habitat","HabitatType"))
+
+ggplot(dataSummaryMelt)+
+  geom_bar(aes(x=Habitat,y=value,fill=variable),stat="identity")+
+  ylab("number of sites")+
+  coord_flip()
+
+```
+
+
+Options:
+- % forest habitat
+- % open/natural habitat
+
+```{r results='asis'}
+
+lineSummary$propOpen <- lineSummary$Open/lineSummary$TotalTerrestrial
+lineSummary$propForest <- lineSummary$Forest/lineSummary$TotalTerrestrial
+
+summary(lineSummary$propOpen)
+summary(lineSummary$propForest)
+
+par(mfrow=c(2,2))
+hist(lineSummary$propOpen)
+hist(asin(sqrt(lineSummary$propOpen)))
+hist(lineSummary$propForest)
+hist(asin(sqrt(lineSummary$propForest)))
+
+setwd("/data/home/diana.bowler/NorskPtarmigan/additional_data_files")
+save(lineSummary,file="lineSummary.RData")
+
+```
+
+Get variables ready for the data files
+
+Proportion of forest is strongly negatively related to the proportion of open habitat
+
+```{r}
+
+#order by site info
+siteInfo$propForest <- lineSummary$propForest[match(siteInfo$originalLinjeID,lineSummary$LinjeID)]
+siteInfo$propOpen <- lineSummary$propOpen[match(siteInfo$originalLinjeID,lineSummary$LinjeID)]
+
+#add to bugs data with a normalising transformation (arcsine sqrt)
+bugs.data$propForest <- asin(sqrt(siteInfo$propForest))
+bugs.data$propOpen <- asin(sqrt(siteInfo$propOpen))
+
+qplot(propForest,propOpen,data=siteInfo)
+
+```
+
+
+#Fit a model (no ar1)
+
+```{r}
+source("/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R")
+                                
+setwd("/data/home/diana.bowler/NorskPtarmigan/models")
+
+out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariate_habitat.txt", n.thin=nt,
+               n.chains=3, n.burnin=2000,n.iter=10000,parallel = T)
+
+```
+
+Print the output
+
+```{r}
+
+print(out1,2)
+
+save(out1,file="/data/home/diana.bowler/NorskPtarmigan/model-outputs/out1_habitat.RData")
+
+```
+
+
+
+#Fit a model with ar1 term
+
+```{r}
+source("/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R")
+                                
+#year one priors
+bugs.data$year1<-as.numeric(apply(my.n,1,function(x)ifelse(!is.na(x[1]),x[1],max(x,na.rm=T))))
+bugs.data$year1[bugs.data$year1==0]<-1
+
+params <- c("int.d","beta.auto","beta.covariateO")
+
+setwd("/data/home/diana.bowler/NorskPtarmigan/models")
+out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS_ar1_habitat.txt", n.thin=nt,
+               n.chains=3, n.burnin=2000,n.iter=10000,parallel = T)
+
+```
+
+Print the output
+
+```{r}
+
+print(out1,2)
+setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
+save(out1,file="out1_habitat.RData")
 
 ```
 
