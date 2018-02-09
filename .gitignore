@@ -25,3 +25,4 @@ vignettes/*.pdf
 .Rproj.user
 NorskPtarmigan.Rproj
 additional_data_files/*.RData
+model_outputs/*.RData
