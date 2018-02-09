@@ -1,0 +1,26 @@
+Code	Habitat
+1	Coniferous Forest – dense canopy layer
+2	Coniferous forest and mixed forest - open canopy
+3	Lichen rich pine forest
+4	Low herb forest and broad leaved deciduous forest
+5	Tall herb - tall fern deciduous forest
+6	Bilberry- low fern birch forest
+7	Crowberry birch forest
+8	Lichen-rich birch forest
+9	Ombrotrophic bog and low-grown lawn vegetation
+10	Tall-grown lawn vegetation
+11	Wet mires, sedge swamps and reed beds
+12	Exposed alpine ridges, scree and rock complex
+13	Graminoid alpine ridge vegetation
+14	Heather-rich alpine ridge vegetation
+15	Lichen-rich heathland
+16	Heather- and grass-rich early snow patch com
+17	Fresh heather and dwarf-shrub communities
+18	Herb-rich meadows
+19	Grass and dwarf willow snow-patch vegetation
+20	Bryophyte late snow patch vegetation
+21	Glacier, snow and wet snow-patch vegetation
+22	Water
+23	Agricultural areas
+24	Cities and built-up areas
+25	Unclassified and shadow affected areas
