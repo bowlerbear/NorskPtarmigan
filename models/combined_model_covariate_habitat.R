@@ -1,4 +1,6 @@
 
+#distance model
+cat("
     model{
 
     #################
@@ -109,6 +111,14 @@
       random.d.site[j] ~ dnorm(0,site.d.tau)
     }
 
+    #random site2 effect
+    site2.d.sd ~ dunif(0,10)
+    site2.d.tau <- pow(site2.d.sd,-2)
+    for(j in 1:n.Sites2){
+      random.d.site2[j] ~ dnorm(0,site2.d.tau)
+
+    }
+    
     #random time effect
     year.d.sd ~ dunif(0,10)
     year.d.tau <- pow(year.d.sd,-2)
@@ -125,6 +135,19 @@
       }
     }
 
+    #random site2 and time effect
+    s2year.d.sd ~ dunif(0,10)
+    s2year.d.tau <- pow(s2year.d.sd,-2)
+    for(j in 1:n.Sites2){
+      for(t in 1:n.Years){
+        random.d.s2year[j,t] ~ dnorm(0,s2year.d.tau)
+      }
+    }
+
+    #slopes
+    beta.covariateF ~ dnorm(0,0.001)
+    beta.covariateO ~ dnorm(0,0.001)
+
     #Observation model:
     for(j in 1:n.Lines){
       for(t in 1:n.Years){
@@ -132,69 +155,18 @@
         expNuIndivs[j,t] <- (Density[j,t] * (TransectLength[j,t]/1000 * predESW[j,t]/1000 * 2))
       }}
 
-
-    #Predict the harvested effort:
-    
-    int.harvest ~ dnorm(0,0.001)
-    trend.harvest ~ dnorm(0,0.001)
-    
-    #random time effect
-    year.h.sd ~ dunif(0,10)
-    year.h.tau <- pow(year.h.sd,-2)
-    for(t in 1:n.Years){
-      random.harvest.year[t] ~ dnorm(0,year.h.tau)
-    }
-
-    #random line effect
-    line.h.sd ~ dunif(0,10)
-    line.h.tau <- pow(line.h.sd,-2)
-    for(j in 1:n.Kommune){
-      random.harvest.line[j] ~ dnorm(0,line.h.tau)
-    }
-
-  
-    #random line/year effect
-    line.year.h.sd ~ dunif(0,10)
-    line.year.h.tau <- pow(line.year.h.sd,-2)
-    for(j in 1:n.Kommune){
-      for(t in 1:n.Years){
-      random.harvest.line.year[j,t] ~ dnorm(0,line.year.h.tau)
-      }
-    }
-
-    #the model
-    for(j in 1:n.Lines){
-      for(t in 1:n.Years){
-        harvestBag[j,t] ~ dpois(expHarvestBag[j,t])
-        log(expHarvestBag[j,t]) <- int.harvest + 
-                                trend.harvest * t + 
-                                random.harvest.year[t] + 
-                                random.harvest.line[Kommune[j]] +  
-                                random.harvest.line.year[Kommune[j],t]  
-
-        expHarvestEffort[j,t] <- expHarvestBag[j,t]/countyArea[j]
-      }
-    }
-
-    #slopes
-    beta.auto ~ dunif(0,1)
-    harvest.effect ~ dnorm(0,0.001)
-
     #State model
     for(j in 1:n.Lines){
-      for(t in 1:(n.Years-1)){
+      for(t in 1:n.Years){
       
       #linear predictor on density
-        log(Density[j,t+1]) <- int.d + 
-                            beta.auto * log(Density[j,t]) +
-                            harvest.effect * (expHarvestEffort[j,t]/Density[j,t]) +
-                            random.d.line[j] + random.d.year[t] + random.d.site[site[j]]
+        log(Density[j,t]) <- int.d + 
+                            random.d.line[j] + 
+                            beta.covariateF * propForest[j] + 
+                            beta.covariateO * propOpen[j] +
+                            random.d.year[t]
     }}
 
-    #Priors on the first year of density
-    for(j in 1:n.Lines){
-        Density[j,1] ~ dpois(year1[j])
-    }
 
    #calculate the Bayesian p-value
     for(j in 1:n.Lines){
@@ -204,4 +176,4 @@
     }
 
     }
-    
+    ",fill=TRUE,file="combined_model_covariate_habitat.txt")

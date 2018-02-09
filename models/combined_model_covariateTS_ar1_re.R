@@ -111,6 +111,14 @@ cat("
       random.d.site[j] ~ dnorm(0,site.d.tau)
     }
 
+    #random site2 effect
+    site2.d.sd ~ dunif(0,10)
+    site2.d.tau <- pow(site2.d.sd,-2)
+    for(j in 1:n.Sites2){
+      random.d.site2[j] ~ dnorm(0,site2.d.tau)
+
+    }
+    
     #random time effect
     year.d.sd ~ dunif(0,10)
     year.d.tau <- pow(year.d.sd,-2)
@@ -127,60 +135,28 @@ cat("
       }
     }
 
+    #random site2 and time effect
+    s2year.d.sd ~ dunif(0,10)
+    s2year.d.tau <- pow(s2year.d.sd,-2)
+    for(j in 1:n.Sites2){
+      for(t in 1:n.Years){
+        random.d.s2year[j,t] ~ dnorm(0,s2year.d.tau)
+      }
+    }
+
+    #slopes
+    beta.auto ~ dunif(-2,2)
+    beta.covariateS ~ dnorm(0,0.001)
+    #beta.covariateS2 ~ dnorm(0,0.001)
+    beta.covariateT ~ dnorm(0,0.001)
+    #beta.covariateA ~ dnorm(0,0.001)
+
     #Observation model:
     for(j in 1:n.Lines){
       for(t in 1:n.Years){
         NuIndivs[j,t] ~ dpois(expNuIndivs[j,t])
         expNuIndivs[j,t] <- (Density[j,t] * (TransectLength[j,t]/1000 * predESW[j,t]/1000 * 2))
       }}
-
-
-    #Predict the harvested effort:
-    
-    int.harvest ~ dnorm(0,0.001)
-    trend.harvest ~ dnorm(0,0.001)
-    
-    #random time effect
-    year.h.sd ~ dunif(0,10)
-    year.h.tau <- pow(year.h.sd,-2)
-    for(t in 1:n.Years){
-      random.harvest.year[t] ~ dnorm(0,year.h.tau)
-    }
-
-    #random line effect
-    line.h.sd ~ dunif(0,10)
-    line.h.tau <- pow(line.h.sd,-2)
-    for(j in 1:n.Kommune){
-      random.harvest.line[j] ~ dnorm(0,line.h.tau)
-    }
-
-  
-    #random line/year effect
-    line.year.h.sd ~ dunif(0,10)
-    line.year.h.tau <- pow(line.year.h.sd,-2)
-    for(j in 1:n.Kommune){
-      for(t in 1:n.Years){
-      random.harvest.line.year[j,t] ~ dnorm(0,line.year.h.tau)
-      }
-    }
-
-    #the model
-    #for(j in 1:n.Lines){
-    #  for(t in 1:n.Years){
-    #    harvestBag[j,t] ~ dpois(expHarvestBag[j,t])
-    #    log(expHarvestBag[j,t]) <- int.harvest + 
-    #                            trend.harvest * t + 
-    #                            random.harvest.year[t] + 
-    #                            random.harvest.line[Kommune[j]] +  
-    #                            random.harvest.line.year[Kommune[j],t]  
-    #
-    #       expHarvestEffort[j,t] <- expHarvestBag[j,t]/countyArea[j]
-    #    }
-    # }
-
-    #slopes
-    beta.auto ~ dunif(0,1)
-    harvest.effect ~ dnorm(0,0.001)
 
     #State model
     for(j in 1:n.Lines){
@@ -189,8 +165,13 @@ cat("
       #linear predictor on density
         log(Density[j,t+1]) <- int.d + 
                             beta.auto * log(Density[j,t]) +
-                            harvest.effect * (harvestBag[j,t]/countyArea[j]/Density[j,t]) +
-                            random.d.line[j] + random.d.year[t] + random.d.site[site[j]]
+                            random.d.line[j] + 
+                            beta.covariateS * spatialMatrix[j,t+1] + 
+                            beta.covariateT * temporalMatrix[j,t+1] +
+                            random.d.site[site[j]] +
+                            random.d.site2[site2[j]]+
+                            random.d.year[t]
+                            
     }}
 
     #Priors on the first year of density
@@ -198,26 +179,26 @@ cat("
         Density[j,1] ~ dpois(year1[j])
     }
 
-  #calculate the Bayesian p-value
-    e <- 0.0001
+    #get predicted temporal effects
     for(j in 1:n.Lines){
       for(t in 1:n.Years){
-    # Fit assessments: Chi-squared test statistic and posterior predictive check
-    chi2[j,t] <- pow((NuIndivs[j,t] - expNuIndivs[j,t]),2) / (sqrt(expNuIndivs[j,t])+e)         # obs.
-    expNuIndivs.new[j,t] ~ dpois(expNuIndivs[j,t])      # Replicate (new) data set
-    chi2.new[j,t] <- pow((expNuIndivs.new[j,t] - expNuIndivs[j,t]),2) / (sqrt(expNuIndivs[j,t])+e) # exp
+        pred.Time[j,t] <- int.d + beta.covariateT * temporalMatrix[j,t]
+      }}
+
+
+    #get predicted spatial effects
+    for(j in 1:n.Lines){
+      for(t in 1:n.Years){
+        #pred.Space[j,t] <- int.d + beta.covariateS * spatialMatrix[j,t]+ beta.covariateS2 * spatialMatrix2[j,t]
+        pred.Space[j,t] <- int.d + beta.covariateS * spatialMatrix[j,t]
+      }}
+
+   #calculate the Bayesian p-value
+    for(j in 1:n.Lines){
+      for(t in 1:n.Years){
+        expNuIndivs.new[j,t] ~ dpois(expNuIndivs[j,t])      
       }
     }
 
-    # Add up discrepancy measures for entire data set
-    for(t in 1:n.Years){
-      fit.t[t] <- sum(chi2[,t])                     
-      fit.new.t[t] <- sum(chi2.new[,t])             
     }
-
-    fit <- sum(fit.t[])                     # Omnibus test statistic actual data
-    fit.new <- sum(fit.new.t[])             # Omnibus test statistic replicate data
-
-
-    }
-    ",fill=TRUE,file="combined_model_covariateTS_ar1_harvesting.txt")
+    ",fill=TRUE,file="combined_model_covariateTS_ar1_re.txt")
