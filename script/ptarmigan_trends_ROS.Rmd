@@ -18,7 +18,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r results='asis'}
 
 #get temperature data
-setwd("/data/home/diana.bowler/tempData")
+setwd("/data/home/diana.bowler/climaticFiles/tempData")
 library(lubridate)
 tempFiles <- list.files(getwd())
 tempData <- ldply(tempFiles, function(x){
@@ -49,14 +49,30 @@ ROSData<-merge(tempData[,-c(1,2,5)],precipData[,-c(1,2,5)],by=c("site","Date","d
 #save(ROSData,file="ROSData.RData")
 
 #clean columns
-ROSData$temp <- as.numeric(ROSData$temp)
-ROSData$precip <- as.numeric(ROSData$precip)
+ROSData$temp <- as.numeric(as.character(ROSData$temp))
+ROSData$precip <- as.numeric(as.character(ROSData$precip))
 ROSData$Year <- year(ROSData$Date)
+
+#also get snowth depth data
+setwd("/data/home/diana.bowler/climaticFiles/snowData")
+tempFiles <- list.files(getwd())
+snowData <- ldply(tempFiles, function(x){
+      temp <- read.delim(x)
+      temp <- subset(temp,site%in%nuIndivs$LinjeID)
+      temp$Date <- gsub("snow_depth_","",temp$map)
+      temp$Date <- as.Date(temp$Date, format="%Y_%m_%d")
+      temp$month <- month(temp$Date)
+      temp$Year <- year(temp$Date)
+      temp$depth <- as.numeric(as.character(temp$depth))
+      return(temp)
+})
+save(snowData,file="snowData.RData")
 
 #get average 
 #tapply is MUCH quicker than ddply
 outT<-tapply(ROSData$temp,list(ROSData$site,ROSData$Date),mean)
 outP<-tapply(ROSData$precip,list(ROSData$site,ROSData$Date),mean)
+outS<-tapply(snowData$depth,list(snowData$site,snowData$Date),mean)
 
 #reorganise
 library(reshape2)
@@ -65,23 +81,24 @@ names(outTm)<-c("site","Date","temp")
 outPm<-melt(outP)
 names(outPm)<-c("site","Date","precip")
 outAll<-merge(data.table(outTm),data.table(outPm),by=c("site","Date"))
+#also add snow data
+outSm<-melt(outS)
+names(outSm)<-c("site","Date","depth")
+outAll<-merge(outAll,data.table(outSm),by=c("site","Date"))
 outAll$Year <- year(outAll$Date)
 outAll$month <- month(outAll$Date)
 outAll$Year[outAll$month==12] <- outAll$Year[outAll$month==12]+1 #shift december into the following year winter
 
-#now count number of days above 0 amd precip above 0 each year and site
-outAllsubset<-subset(outAll, temp>0 & precip>0)
-out<-table(outAllsubset$site,outAllsubset$Year)
-outM<-melt(out)
-names(outM)<-c("site","Year","ROS")
-
-ROSData<-outM
+#now count number of days above 0 amd precip and snow depth above 0 each year and site
+outAllSummary<-ddply(outAll,.(site,Year),summarise,ROS=sum(precip[temp>0 & depth>300]))
+ROSData<-outAllSummary
 
 #add spatial cluster units
 ROSData$OmradeID<-allData$OmradeID[match(ROSData$site,allData$LinjeID)]
 ROSData$Fylke<-allData$Fylkesnavn[match(ROSData$site,allData$LinjeID)]
 
 #plotting
+library(ggplot2)
 qplot(Year,ROS,data=ROSData,geom=c("point","line"),colour=OmradeID)+
           theme(legend.position = "none")+
           facet_wrap(~Fylke)
@@ -130,7 +147,7 @@ bugs.data$spatialMatrix2 <- bugs.data$spatialMatrix^2#also add a polynomial term
 #temporal
 tMmelted<-melt(bugs.data$temporalMatrix)
 allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
-                                           interaction(tMmelted$X2,tMmelted$X1))]
+                                           interaction(tMmelted$Var2,tMmelted$Var1))]
 
 ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
   geom_point(aes(colour=factor(Fylkesnavn)))+
@@ -141,7 +158,7 @@ ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
 #spatial
 tMmelted<-melt(bugs.data$spatialMatrix)
 allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
-                                           interaction(tMmelted$X2,tMmelted$X1))]
+                                           interaction(tMmelted$Var2,tMmelted$Var1))]
 
 ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
   geom_point(aes(colour=factor(Fylkesnavn)))+
@@ -214,6 +231,7 @@ save(out1,file="out1_ROS.RData")
 
 #Fit a model with ar1 term
 ```{r}
+source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
 
 #year one priors
 bugs.data$year1<-as.numeric(apply(my.n,1,function(x)ifelse(!is.na(x[1]),x[1],max(x,na.rm=T))))
@@ -221,8 +239,8 @@ bugs.data$year1[bugs.data$year1==0]<-1
 
 params <- c("int.d","beta.auto","beta.covariateS","beta.covariateT","pred.Time","pred.Space")
 
-out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS_ar1.txt", n.thin=nt,
-               n.chains=3, n.burnin=2000,n.iter=10000,parallel = T)
+setwd("/data/home/diana.bowler/NorskPtarmigan/models")
+out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS_ar1.txt", n.thin=2, n.chains=3, n.burnin=2000,n.iter=10000,parallel = T)
 
 ```
 
@@ -230,6 +248,7 @@ out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS_ar1.txt"
 
 ```{r}
 print(out1,2)
+setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
 save(out1,file="out1_ROS.RData")
 
 ```

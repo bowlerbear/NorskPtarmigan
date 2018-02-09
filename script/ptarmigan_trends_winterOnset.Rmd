@@ -13,40 +13,74 @@ knitr::opts_chunk$set(echo = TRUE)
 
 #Covariates at the level of the line
 
-#winter data (april and may)
+winter data
 
 ```{r results='asis'}
 
-setwd("/data/home/diana.bowler/snowData")
+setwd("/data/home/diana.bowler/climaticFiles/snowData")
 library(lubridate)
 
 tempFiles <- list.files(getwd())
-winterData <- ldply(tempFiles, function(x){
+snowData <- ldply(tempFiles, function(x){
       temp <- read.delim(x)
       temp <- subset(temp,site%in%nuIndivs$LinjeID)
       temp$Date <- gsub("snow_depth_","",temp$map)
       temp$Date <- as.Date(temp$Date, format="%Y_%m_%d")
       temp$month <- month(temp$Date)
       temp$week <- week(temp$Date)
-      temp <- subset(temp,month%in%c(9:12))
-      temp$depth <- as.numeric(temp$depth)
-      subset(temp, depth>0)
+      temp <- subset(temp,month%in%c(8:12))
+      temp$depth <- as.numeric(as.character(temp$depth))
+      return(temp)
 })
 
-#get average per site/lineid 725 ids
-winterData$Year <- year(winterData$Date)
-winterData <- ddply(winterData, .(week,Year,site), summarise, snowDays = length(depth))
-winterData <- subset(winterData, snowDays==7)
-winterData <- ddply(winterData, .(Year,site), summarise, onset = min(week))
-                    
+save(snowData,file="snowData.RData")
+
+```
+
+format the file
+
+```{r}
+setwd("/data/home/diana.bowler/climaticFiles")
+load("snowData.RData")
+
+#get average depth per site
+outS<-tapply(snowData$depth,list(snowData$site,snowData$Date),median)
+library(reshape2)
+snowData<-melt(outS)
+names(snowData)<-c("site","Date","depth")
+
+#get the average per week
+library(lubridate)
+snowData$Year <- year(snowData$Date)
+snowData$week <- week(snowData$Date)
+table(snowData$week)
+snowData <- subset(snowData,!week %in% c(35,53))#these weeks are not present in all years
+outS<-tapply(snowData$depth,list(snowData$site,snowData$Year,snowData$week),function(x)sum(x>0))
+
+#then get minimum week per year with 7 days of snow cover
+snowData<-melt(outS)
+names(snowData)<-c("site","Year","week","depth")
+snowData <- ddply(snowData, .(Year,site), summarise, firstWeek = min(week[depth==7]))
+snowData$firstWeek[is.infinite(snowData$firstWeek)]<-52#17 sites without 7 days of cover
+hist(snowData$firstWeek)
+
 #add spatial cluster units
-winterData$OmradeID<-allData$OmradeID[match(winterData$site,allData$LinjeID)]
-winterData$Fylke<-allData$Fylkesnavn[match(winterData$site,allData$LinjeID)]
+snowData$OmradeID<-allData$OmradeID[match(snowData$site,allData$LinjeID)]
+snowData$Fylke<-allData$Fylkesnavn[match(snowData$site,allData$LinjeID)]
+
+head(snowData)
+```
 
 #plotting
-qplot(Year,temp,data=winterData,geom=c("point","line"),colour=OmradeID)+
+
+```{R}
+library(ggplot2)
+
+qplot(Year,firstWeek,data=snowData,geom=c("point","line"),colour=OmradeID)+
           theme(legend.position = "none")+
           facet_wrap(~Fylke)
+
+#better to calculate 7 day rolling means of julian day
 
 ```
 
@@ -54,9 +88,9 @@ qplot(Year,temp,data=winterData,geom=c("point","line"),colour=OmradeID)+
 #Organise the covariate
 
 ```{r}
-
 #choose my covariate
-myCovariate =winterData
+myCovariate =snowData
+myCovariate$Year = myCovariate$Year + 1
 myCovariate<-subset(myCovariate,Year%in%nuIndivs$Year)
 covariateMatrix = my.n
 rowNames<-as.character(sapply(row.names(my.n),function(x)strsplit(as.character(x),"#")[[1]][2]))
@@ -67,8 +101,7 @@ all(myCovariate$Year%in%dimnames(covariateMatrix)[[2]])
 
 for(i in 1:nrow(covariateMatrix)){
   for(j in 1:ncol(covariateMatrix)){
-    covariateMatrix[i,j] = myCovariate$temp[myCovariate$site==rowNames[i]&
-                                              myCovariate$Year==dimnames(covariateMatrix)[[2]][j]]
+    covariateMatrix[i,j] = myCovariate$firstWeek[myCovariate$site==rowNames[i]&                                              myCovariate$Year==dimnames(covariateMatrix)[[2]][j]]
   }
 }
 
@@ -92,7 +125,7 @@ bugs.data$spatialMatrix2 <- bugs.data$spatialMatrix^2#also add a polynomial term
 #temporal
 tMmelted<-melt(bugs.data$temporalMatrix)
 allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
-                                           interaction(tMmelted$X2,tMmelted$X1))]
+                                           interaction(tMmelted$Var2,tMmelted$Var1))]
 
 ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
   geom_point(aes(colour=factor(Fylkesnavn)))+
@@ -103,7 +136,7 @@ ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
 #spatial
 tMmelted<-melt(bugs.data$spatialMatrix)
 allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
-                                           interaction(tMmelted$X2,tMmelted$X1))]
+                                           interaction(tMmelted$Var2,tMmelted$Var1))]
 
 ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
   geom_point(aes(colour=factor(Fylkesnavn)))+
@@ -118,7 +151,7 @@ ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
 ```{r results='asis'}
 tMmelted<-melt(bugs.data$temporalMatrix)
 allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
-                                           interaction(tMmelted$X2,tMmelted$X1))]
+                                           interaction(tMmelted$Var2,tMmelted$Var1))]
 
 ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
   geom_point(aes(colour=factor(OmradeID)))+
@@ -126,11 +159,10 @@ ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
   ggtitle("temporal")+
   facet_wrap(~Fylkesnavn,scales="free")
 
-#negative trends driven by warm year
 
 tMmelted<-melt(bugs.data$spatialMatrix)
 allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
-                                           interaction(tMmelted$X2,tMmelted$X1))]
+                                           interaction(tMmelted$Var2,tMmelted$Var1))]
 
 ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
   geom_point(aes(colour=factor(OmradeID)))+
@@ -177,12 +209,15 @@ save(out1,file="out1_winterOnset.RData")
 #Fit a model with ar1 term
 ```{r}
 
+source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
+
 #year one priors
 bugs.data$year1<-as.numeric(apply(my.n,1,function(x)ifelse(!is.na(x[1]),x[1],max(x,na.rm=T))))
 bugs.data$year1[bugs.data$year1==0]<-1
 
 params <- c("int.d","beta.auto","beta.covariateS","beta.covariateT","pred.Time","pred.Space")
 
+setwd("/data/home/diana.bowler/NorskPtarmigan/models")
 out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS_ar1.txt", n.thin=nt,
                n.chains=3, n.burnin=2000,n.iter=15000,parallel = T)
 
@@ -192,7 +227,39 @@ out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS_ar1.txt"
 
 ```{r}
 print(out1,2)
+setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
 save(out1,file="out1_winterOnset.RData")
 
 ```
 
+#including also the random effects
+
+```{r}
+
+source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
+
+#year one priors
+bugs.data$year1<-as.numeric(apply(my.n,1,function(x)ifelse(!is.na(x[1]),x[1],max(x,na.rm=T))))
+bugs.data$year1[bugs.data$year1==0]<-1
+
+params <- c("line.d.sd","site.d.sd","site2.d.sd","year.d.sd",
+            "int.d","beta.auto","beta.covariateS","beta.covariateT","pred.Time","pred.Space")
+
+setwd("/data/home/diana.bowler/NorskPtarmigan/models")
+out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS_ar1_re.txt", n.thin=nt,
+               n.chains=3, n.burnin=2000,n.iter=10000,parallel = T)
+
+
+```
+#Print the output
+
+```{r}
+print(out1,2)
+
+setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
+save(out1,file="out1_winterOnset_re.RData")
+
+out1$summary[grepl(".sd",row.names(out1$summary)),]
+#maybe remove the year effect and the site effect
+
+```

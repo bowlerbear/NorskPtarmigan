@@ -31,11 +31,12 @@ springData <- ldply(tempFiles, function(x){
       subset(temp,month%in%c(4:5))
 })
 
+save(springData,file="springData_AprilMay.RData")
+
 #get average per site/lineid
-springData$temp <- as.numeric(springData$temp)
+springData$temp <- as.numeric(as.character(springData$temp))
 springData$Year <- year(springData$Date)
 springData <- ddply(springData, .(Year,site), summarise, temp = mean(temp))
-
 
 #add spatial cluster units
 springData$OmradeID<-allData$OmradeID[match(springData$site,allData$LinjeID)]

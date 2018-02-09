@@ -14,12 +14,15 @@ knitr::opts_chunk$set(echo = TRUE)
 Import the data - check the subsetting is as wanted
 
 ```{r}
-library(knitr)
-knit("ptarmigan_formatting.Rmd")
+#library(knitr)
+#knit("ptarmigan_formatting.Rmd")
+load("/data/home/diana.bowler/NorskPtarmigan/allData.RData")
+head(allData)
 
 ```
 
-Plot the data
+Plot the data:
+
 ```{r results='asis'}
 
 qplot(Year,totalIndiv,data=allData,facets=~Fylkesnavn)
@@ -30,9 +33,11 @@ qplot(Year,totalIndiv,data=allData,facets=~Fylkesnavn)
 Get population data
 
 ```{r, warning=FALSE}
+library(magrittr)
+library(plyr); library(dplyr)
 
 #subset
-allData<-subset(allData,Year>2006&Year<2017)
+allData<-subset(allData,Year>2006 & Year<2017)
 
 #remove hyphens for help with subsetting
 allData$Fylkesnavn<-gsub("-"," ",allData$Fylkesnavn)
@@ -97,7 +102,7 @@ bugs.data <- list(#For the state model
                   n.Lines = length(unique(nuIndivs$LinjeID)),
                   n.Years = length(unique(nuIndivs$Year)),
                   n.Sites = length(unique(nuIndivs$Fylkesnavn)),
-                  n.Sites2 = length(unique(nuIndivs$Rapporteringsniva)),
+                  n.Sites2 = length(unique(interaction(nuIndivs$Rapporteringsniva,nuIndivs$Fylkesnavn))),
                   line = siteInfo$LinjeID,
                   site = siteInfo$Fylkesnavn,
                   site2 = siteInfo$Rapporteringsniva, 
@@ -112,7 +117,10 @@ bugs.data <- list(#For the state model
                   GroupSize = allDetections$totalIndiv,
                   zeros.dist = rep(0,nrow(allDetections)),
                   detectionLine =as.numeric(factor(allDetections$LinjeID)),
-                  detectionYear = as.numeric(factor(allDetections$Year)))
+                  detectionYear = as.numeric(factor(allDetections$Year)),
+                  detectionSite = as.numeric(factor(allDetections$Rapporteringsniva)))
+
+bugs.data$detectionLineYear<-detectionYear*detectionLine
 
 #year one priors
 bugs.data$year1<-as.numeric(apply(my.n,1,function(x)ifelse(!is.na(x[1]),x[1],max(x,na.rm=T))))
@@ -124,6 +132,7 @@ bugs.data$year1[bugs.data$year1==0]<-1
 More model checking
 
 ```{r}
+
 library(coda)
 bayes.mod.fit.mcmc <- as.mcmc(out1)
 summary(bayes.mod.fit.mcmc)

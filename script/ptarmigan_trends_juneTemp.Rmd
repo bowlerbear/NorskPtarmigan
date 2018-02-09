@@ -32,10 +32,9 @@ juneData <- ldply(tempFiles, function(x){
 })
 
 #get average per site/lineid
-juneData$temp <- as.numeric(juneData$temp)
+juneData$temp <- as.numeric(as.character(juneData$temp))
 juneData$Year <- year(juneData$Date)
 juneData <- ddply(juneData, .(Year,site), summarise, temp = mean(temp))
-
 
 #add spatial cluster units
 juneData$OmradeID<-allData$OmradeID[match(juneData$site,allData$LinjeID)]

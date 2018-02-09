@@ -17,7 +17,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r results='asis'}
 
-setwd("/data/home/diana.bowler/tempData")
+setwd("/data/home/diana.bowler/climaticFiles/tempData")
 library(lubridate)
 
 tempFiles <- list.files(getwd())
@@ -31,11 +31,12 @@ winterData <- ldply(tempFiles, function(x){
       subset(temp,month%in%c(1:2))
 })
 
+save(winterData,file="winterData_JanFeb.RData")
+
 #get average per site/lineid
-winterData$temp <- as.numeric(winterData$temp)
+winterData$temp <- as.numeric(as.character(winterData$temp))
 winterData$Year <- year(winterData$Date)
 winterData <- ddply(winterData, .(Year,site), summarise, temp = mean(temp))
-
 
 #add spatial cluster units
 winterData$OmradeID<-allData$OmradeID[match(winterData$site,allData$LinjeID)]
@@ -182,7 +183,7 @@ bugs.data$year1[bugs.data$year1==0]<-1
 params <- c("int.d","beta.auto","beta.covariateS","beta.covariateT","pred.Time","pred.Space")
 
 out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS_ar1.txt", n.thin=nt,
-               n.chains=3, n.burnin=2000,n.iter=15000,parallel = T)
+               n.chains=3, n.burnin=400,n.iter=5000,parallel = T)
 
 ```
 

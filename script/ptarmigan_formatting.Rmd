@@ -44,8 +44,8 @@ library(plyr)
 mydataTemp<-subset(mydata,month%in%c(7,8,9))#anysurvey
 
 #subset
-dogObs<-subset(mydataTemp,FK_ArtId==1&FK_OppfluktId%in%c(1,2) & !is.na(LinjeAvstand) & LinjeAvstand<500)
-humanObs<-subset(mydataTemp,FK_ArtId==1&FK_OppfluktId%in%c(3,4)& !is.na(LinjeAvstand) & LinjeAvstand<500)
+dogObs<-subset(mydataTemp,FK_ArtId==1&FK_OppfluktId%in%c(1,2) &#dogs !is.na(LinjeAvstand) & LinjeAvstand<500)
+humanObs<-subset(mydataTemp,FK_ArtId==1&FK_OppfluktId%in%c(3,4)&#person/other !is.na(LinjeAvstand) & LinjeAvstand<500)
 
 #plotting
 hist(dogObs$LinjeAvstand)
@@ -71,8 +71,8 @@ hist(allDistances$LinjeAvstand)
 ```{r}
 
 mydataTemp<-subset(mydata,month%in%c(7,8,9))#anysurvey
-dataSubset1<-subset(mydataTemp,FK_ArtId==1 & FK_OppfluktId%in%c(1,2))#willow partmigan seen and any data flushed by a dog
-dataSubset2<-subset(mydataTemp,FK_ArtId==1 & FK_OppfluktId%in%c(3,4) & abs(LinjeAvstand)<10)#willow partmigan seen and any data flushed by a dog
+dataSubset1<-subset(mydataTemp,FK_ArtId==1 & FK_OppfluktId%in%c(1,2))#willow partmigan seen 
+dataSubset2<-subset(mydataTemp,FK_ArtId==1 & FK_OppfluktId%in%c(3,4) & abs(LinjeAvstand)<10)#willow partmigan seen
 dataSubset<- rbind(dataSubset1,dataSubset2)
 dataSubset$LinjeAvstand <- abs(dataSubset$LinjeAvstand)#get rid of negative values
 
