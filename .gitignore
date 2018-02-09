@@ -24,3 +24,4 @@ vignettes/*.pdf
 *.knit.md
 .Rproj.user
 NorskPtarmigan.Rproj
+additional_data_files/*.RData
