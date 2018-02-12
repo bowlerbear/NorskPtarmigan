@@ -23,6 +23,16 @@ ggplot(subset(allData,!is.na(totalIndiv)),aes(x=Year,y=totalIndiv,group=LinjeID)
 
 ```
 
+How many groups do we usually have per line per year?
+
+```{r}
+
+nuGroups<-ddply(allDetections,.(LinjeID,Year),summarise,nuGroups=length(LinjeAvstand))
+summary(nuGroups$nuGroups)
+
+```
+
+
 Run model in JAGS 
 
 ```{r}
@@ -31,10 +41,12 @@ source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
 
 setwd("/data/home/diana.bowler/NorskPtarmigan/models")
 
-params <- c("int.gs","line.sd","site.sd","year.sd","line.year.sd","predGroupSize")
+params <- c("int.gs","line.sd","site.sd","year.sd","line.year.sd","site.year.sd",
+            "expGroupSize","predGroupSize","random.gs.line.year","out2")
 
 out1 <- jags(bugs.data, inits=NULL, params, "group_size_model.txt", n.thin=nt,
-               n.chains=3, n.burnin=1000,n.iter=5000)
+               n.chains=3, n.burnin=200,n.iter=1000)
+
 ```
 
 Print output
@@ -45,8 +57,81 @@ Print output
 #ggs_traceplot(ggs(out1$samples)) 
 
 print(out1,2)
+#save(out1,file="out1_group_size_model_basic.RData")
+save(out1,file="out1_group_size_model.RData")
 
 ```
 
+#compare with observed group size
+
+```{r results='asis'}
+
+allDetections$expGroupSize <- out1$mean$expGroupSize
+allDetectionsSummary<-ddply(allDetections,.(Year,LinjeID,Fylkesnavn),summarise,
+                            totalIndiv=mean(totalIndiv),
+                            expGroupSize=mean(expGroupSize))
+
+qplot(expGroupSize,totalIndiv,data=allDetectionsSummary)+facet_wrap(~Fylkesnavn)
 
 
+```
+
+Check that expected and predicted values are the same
+
+```{r, results='asis'}
+
+predictedDF<-data.frame(out1$summary[grepl("predGroupSize",row.names(out1$summary)),])
+predictedDF$ParamNu <- as.character(gsub(".*\\[([^][]+)].*", "\\1", row.names(predictedDF)))
+predictedDF$matchingLine<-sapply(predictedDF$ParamNu,function(x)strsplit(x,",")[[1]][1])
+predictedDF$Year<-as.numeric(sapply(predictedDF$ParamNu,function(x)strsplit(x,",")[[1]][2]))+2006
+
+
+#add to all detections file
+allDetections$preds<-predictedDF$mean[match(interaction(allDetections$Year,allDetections$LinjeID),
+                                            interaction(predictedDF$Year,predictedDF$matchingLine))]
+
+qplot(preds,expGroupSize,data=allDetections)
+
+```
+
+```{r}
+
+lineYears<-data.frame(index=bugs.data$detectionLineYear)
+lineYears$re<-out1$mean$random.gs.line.year[bugs.data$detectionLineYear]
+allDetections$re<-lineYears$re
+
+#line/year combinations
+allCombos<-expand.grid(Line=unique(allDetections$LinjeID),Year=unique(allDetections$Year))
+
+#index all data points by transect and year for use in the model
+TransYrIdx<-matrix(nrow=nrow(allDetections),ncol=nrow(allCombos))
+TransYrIdx[]<-0
+for(i in 1:nrow(allDetections)){
+  TransYrIdx[i,which(allCombos$Year==allDetections$Year[i]&
+    allCombos$Line==allDetections$LinjeID[i])]<-1
+}
+
+#add to bugs data
+bugs.data$allCombos<-as.matrix(allCombos)
+bugs.data$n.allCombos<-nrow(allCombos)
+bugs.data$TransYrIdx<-TransYrIdx
+
+#write BUGS code
+out<-matrix(nrow=nrow(allDetections),ncol=nrow(allCombos))
+out[]<-0
+out2<-as.numeric()
+#times the re by the indices
+for(k in 1:nrow(allCombos)){
+  for(i in 1:nrow(allDetections)){
+  out[i,k]<-allDetections$re[i]*TransYrIdx[i,k]
+  }
+  
+  out2[k]<-max(out[,k])
+}
+
+allCombos$re<-out2
+#convert in an j/t matrix
+
+
+
+```

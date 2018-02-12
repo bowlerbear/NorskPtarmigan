@@ -49,26 +49,28 @@ library(reshape2)
 snowData<-melt(outS)
 names(snowData)<-c("site","Date","depth")
 
-#get the average per week
+#get 7 day rolling ahead means
+library(zoo)
 library(lubridate)
-snowData$Year <- year(snowData$Date)
-snowData$week <- week(snowData$Date)
-table(snowData$week)
-snowData <- subset(snowData,!week %in% c(35,53))#these weeks are not present in all years
-outS<-tapply(snowData$depth,list(snowData$site,snowData$Year,snowData$week),function(x)sum(x>0))
-
-#then get minimum week per year with 7 days of snow cover
-snowData<-melt(outS)
-names(snowData)<-c("site","Year","week","depth")
-snowData <- ddply(snowData, .(Year,site), summarise, firstWeek = min(week[depth==7]))
-snowData$firstWeek[is.infinite(snowData$firstWeek)]<-52#17 sites without 7 days of cover
-hist(snowData$firstWeek)
+snowData$yday<-yday(as.Date(snowData$Date))
+snowData$Year<-year(as.Date(snowData$Date))
+snowData<-ddply(snowData,.(site,Year),function(x){
+  x<-x[order(x$yday),]
+  x$rollingDepth<-rollmedian(x$depth,k=7,fill=NA)
+  return(x)
+})
+snowData<-ddply(snowData,.(site,Year),summarise,
+                onset=min(yday[rollingDepth>0&!is.na(rollingDepth)]))
+snowData<-subset(snowData,Year!=2017)
+summary(snowData$onset)
+hist(snowData$onset)
 
 #add spatial cluster units
 snowData$OmradeID<-allData$OmradeID[match(snowData$site,allData$LinjeID)]
 snowData$Fylke<-allData$Fylkesnavn[match(snowData$site,allData$LinjeID)]
 
 head(snowData)
+
 ```
 
 #plotting
@@ -76,7 +78,7 @@ head(snowData)
 ```{R}
 library(ggplot2)
 
-qplot(Year,firstWeek,data=snowData,geom=c("point","line"),colour=OmradeID)+
+qplot(Year,onset,data=snowData,geom=c("point","line"),colour=OmradeID)+
           theme(legend.position = "none")+
           facet_wrap(~Fylke)
 
@@ -101,7 +103,7 @@ all(myCovariate$Year%in%dimnames(covariateMatrix)[[2]])
 
 for(i in 1:nrow(covariateMatrix)){
   for(j in 1:ncol(covariateMatrix)){
-    covariateMatrix[i,j] = myCovariate$firstWeek[myCovariate$site==rowNames[i]&                                              myCovariate$Year==dimnames(covariateMatrix)[[2]][j]]
+    covariateMatrix[i,j] = myCovariate$onset[myCovariate$site==rowNames[i]&                                              myCovariate$Year==dimnames(covariateMatrix)[[2]][j]]
   }
 }
 
@@ -246,9 +248,7 @@ params <- c("line.d.sd","site.d.sd","site2.d.sd","year.d.sd",
             "int.d","beta.auto","beta.covariateS","beta.covariateT","pred.Time","pred.Space")
 
 setwd("/data/home/diana.bowler/NorskPtarmigan/models")
-out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS_ar1_re.txt", n.thin=nt,
-               n.chains=3, n.burnin=2000,n.iter=10000,parallel = T)
-
+out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS_ar1_re.txt", n.thin=nt,n.chains=3, n.burnin=2000,n.iter=10000,parallel = T)
 
 ```
 #Print the output
@@ -258,8 +258,5 @@ print(out1,2)
 
 setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
 save(out1,file="out1_winterOnset_re.RData")
-
-out1$summary[grepl(".sd",row.names(out1$summary)),]
-#maybe remove the year effect and the site effect
 
 ```

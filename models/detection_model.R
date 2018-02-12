@@ -11,7 +11,7 @@ cat("
     # priors for fixed effect parms for half-normal detection parm sigma
     b.df.0 ~ dunif(0,20)        
     b.group.size ~ dnorm(0,0.001)
-    b.forest ~ dnorm(0,0.001)
+    b.time ~ dnorm(0,0.001)
 
     #random line effect
     line.det.sd ~ dunif(0,10)
@@ -23,7 +23,7 @@ cat("
     for( i in 1:N){
     #linear predictor
     mu.df[i] <- b.df.0 + b.group.size * detectionGroupSize[i] 
-                        + b.forest * propForest[i] + random.det.line[detectionLine[i]]
+                        + b.time * Time[i] + random.det.line[detectionLine[i]]
     
     # estimate of sd and var, given coeffs above
     sig.df[i] <- exp(mu.df[i])

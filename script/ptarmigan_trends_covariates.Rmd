@@ -94,7 +94,13 @@ siteInfo$Kommunenavn<-nuIndivs$Kommunenavn[match(siteInfo$originalLinjeID,nuIndi
 
 #Create a data frame with only detection
 allDetections<-subset(allData,totalIndiv>0&!is.na(totalIndiv))
-allDetections<-arrange(allDetections,LinjeID)
+#get indices of sites
+allDetections<-merge(allDetections[,-c(2:7)],siteInfo,by="Line",all.x=T,sort=FALSE)
+allDetections$detectionLineYear<-
+  as.numeric(factor(interaction(allDetections$LinjeID,allDetections$Year)))
+allDetections$detectionSiteYear<-
+  as.numeric(factor(interaction(allDetections$Rapporteringsniva,allDetections$Year)))
+
 head(allDetections)
 
 #Organise fur bugs
@@ -116,15 +122,20 @@ bugs.data <- list(#For the state model
                   detectionGroupSize = log(allDetections$totalIndiv+1),
                   GroupSize = allDetections$totalIndiv,
                   zeros.dist = rep(0,nrow(allDetections)),
-                  detectionLine =as.numeric(factor(allDetections$LinjeID)),
-                  detectionYear = as.numeric(factor(allDetections$Year)),
-                  detectionSite = as.numeric(factor(allDetections$Rapporteringsniva)))
+                  detectionLine = allDetections$LinjeID,
+                  detectionYear = as.numeric(as.factor(allDetections$Year)),
+                  detectionSite = allDetections$Rapporteringsniva)
 
-bugs.data$detectionLineYear<-detectionYear*detectionLine
+bugs.data$detectionLineYear<-allDetections$detectionLineYear
+bugs.data$detectionSiteYear<-allDetections$detectionSiteYear
+bugs.data$n.LineYear<-length(unique(bugs.data$detectionLineYear))
+bugs.data$n.SiteYear<-length(unique(bugs.data$detectionSiteYear))
 
 #year one priors
 bugs.data$year1<-as.numeric(apply(my.n,1,function(x)ifelse(!is.na(x[1]),x[1],max(x,na.rm=T))))
 bugs.data$year1[bugs.data$year1==0]<-1
+
+names(bugs.data)
 
 ```
 
