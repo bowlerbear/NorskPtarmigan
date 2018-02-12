@@ -26,3 +26,6 @@ vignettes/*.pdf
 NorskPtarmigan.Rproj
 additional_data_files/*.RData
 model_outputs/*.RData
+snowData.RData
+detectionModels_bugsData.RData
+allData.RData
