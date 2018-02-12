@@ -37,12 +37,12 @@ Run model in JAGS
 
 ```{r}
 
-source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
+source('script/bugsFunctions.R')
 
-setwd("/data/home/diana.bowler/NorskPtarmigan/models")
+setwd("models")
 
 params <- c("int.gs","line.sd","site.sd","year.sd","line.year.sd","site.year.sd",
-            "expGroupSize","predGroupSize","random.gs.line.year","out2")
+            "expGroupSize","predGroupSize","randomSY2","randomSY3")
 
 out1 <- jags(bugs.data, inits=NULL, params, "group_size_model.txt", n.thin=nt,
                n.chains=3, n.burnin=200,n.iter=1000)
@@ -101,14 +101,14 @@ lineYears$re<-out1$mean$random.gs.line.year[bugs.data$detectionLineYear]
 allDetections$re<-lineYears$re
 
 #line/year combinations
-allCombos<-expand.grid(Line=unique(allDetections$LinjeID),Year=unique(allDetections$Year))
+allCombos<-expand.grid(Site=unique(allDetections$Rapporteringsniva),Year=unique(allDetections$Year))
 
 #index all data points by transect and year for use in the model
 TransYrIdx<-matrix(nrow=nrow(allDetections),ncol=nrow(allCombos))
 TransYrIdx[]<-0
 for(i in 1:nrow(allDetections)){
   TransYrIdx[i,which(allCombos$Year==allDetections$Year[i]&
-    allCombos$Line==allDetections$LinjeID[i])]<-1
+    allCombos$Site==allDetections$Rapporteringsniva[i])]<-1
 }
 
 #add to bugs data
@@ -132,6 +132,6 @@ for(k in 1:nrow(allCombos)){
 allCombos$re<-out2
 #convert in an j/t matrix
 
-
+bugs.data$indices<-unique(data.frame(allDetections[,c("Year","Rapporteringsniva","detectionSiteYear")]))
 
 ```

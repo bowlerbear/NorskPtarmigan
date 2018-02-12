@@ -14,9 +14,9 @@ knitr::opts_chunk$set(echo = TRUE)
 Import the data - check the subsetting is as wanted
 
 ```{r}
-#library(knitr)
+library(knitr)
 #knit("ptarmigan_formatting.Rmd")
-load("/data/home/diana.bowler/NorskPtarmigan/allData.RData")
+load("allData.RData")
 head(allData)
 
 ```

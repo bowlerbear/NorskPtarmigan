@@ -40,7 +40,7 @@
     site.year.sd ~ dunif(0,10)
     site.year.tau <- pow(site.year.sd,-2)
     for(j in 1:n.SiteYear){
-      random.gs.site2.year[j] ~ dnorm(0,site.year.tau)
+      random.gs.site.year[j] ~ dnorm(0,site.year.tau)
     }
 
     #Model
@@ -52,27 +52,27 @@
                             random.gs.year[detectionYear[i]]+ 
                             random.gs.line[detectionLine[i]]+
                             random.gs.site2[detectionSite[i]]+
-                            random.gs.site2.year[detectionSiteYear[i]]
+                            random.gs.site.year[detectionSiteYear[i]]
     
     }
 
 
-    for(t in 1:n.Years){
-      randomSY2[t] <- mean(random.gs.site2.year[detectionYear[t]])
-    }
-    for(j in 1:n.Sites2){
-      randomSY3[j] <- mean(random.gs.site2.year[detectionSite[j]])
-    }
-
-
+    #split the detection line year effect
+    #for(k in 1:n.allCombos){
+    #  for(i in 1:N){
+    #    out[i,k] <- random.gs.line.year[i] * TransYrIdx[i,k]
+    #  }
+    #    out2[k] <- max(out[,k],0)
+    #}
+    
     #using this model, get predicted group size for each line and year
     for(t in 1:n.Years){
       for(j in 1:n.Lines){
         log(predGroupSize[j,t]) <- int.gs + 
                                     random.gs.year[t]+ 
                                     random.gs.line[j]+
-                                    random.gs.site2[site2[j]]
-                                    #random.gs.site2.year[t,site2[j]]
+                                    random.gs.site2[site2[j]]+
+                                    random.gs.site2.year[t,site2[j]]
      }
     }
 
