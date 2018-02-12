@@ -80,35 +80,61 @@ bugs.data <- list(W = 200,
                   detectionLine =as.numeric(factor(allDetections$LinjeID)),
                   detectionYear = as.numeric(factor(allDetections$Year)))
 
+save(bugs.data,file="detectionModels_bugsData.RData")
+
 ```
 
-(Model)
+(1) Forest model
 
 ```{r cache = TRUE}
 
 source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
 
-params <- c("b.df.0","b.group.size","b.forest","esw")
+params <- c("b.df.0","b.group.size","b.forest")
   
 #inits <- function(){list(b.df.0 = runif(1,2,5), 
 #                         B.gs.0 = runif(1,0.2,3),
 #                         B.n.0 = runif(1,0.5,5))}
   
-setwd("/data/home/diana.bowler/NorskPtarmigan/models")
+#setwd("/data/home/diana.bowler/NorskPtarmigan/models")
 out1 <- jags(bugs.data, inits=NULL, params, "detection_model.txt", n.thin=nt,
-               n.chains=nc, n.burnin=200,n.iter=1000)
+               n.chains=nc, n.burnin=1000,n.iter=5000)
 
 ```
 
 #Look at summary ouput from this model
 
 ```{r}
-setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
-#out1$summary[grepl("esw",row.names(out1$summary)),]
-#summary(out1$mean$esw)
+#setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
 
-#print(out1,3)
-#Size effect but not time effect
+save(out1,file="out1_detection_forest.RData")
+
+```
+
+(2)Precip model
+
+```{r cache = TRUE}
+
+source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
+
+params <- c("b.df.0","b.group.size","b.precip")
+  
+#inits <- function(){list(b.df.0 = runif(1,2,5), 
+#                         B.gs.0 = runif(1,0.2,3),
+#                         B.n.0 = runif(1,0.5,5))}
+  
+#setwd("/data/home/diana.bowler/NorskPtarmigan/models")
+out1 <- jags(bugs.data, inits=NULL, params, "detection_model.txt", n.thin=nt,
+               n.chains=nc, n.burnin=1000,n.iter=5000)
+
+```
+
+#Look at summary ouput from this model
+
+```{r}
+#setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
+
+save(out1,file="out1_detection_precip.RData")
 
 ```
 

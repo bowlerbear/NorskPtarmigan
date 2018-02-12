@@ -1,6 +1,4 @@
 
-#distance model
-cat("
     model{
 
     ##################
@@ -79,4 +77,4 @@ cat("
     }
 
     }
-    ",fill=TRUE,file="group_size_model.txt")
+    
