@@ -76,8 +76,7 @@ cat("
     for(i in 1:N){
       GroupSize[i] ~ dpois(expGroupSize[i])
       log(expGroupSize[i]) <- int.gs + random.gs.year[detectionYear[i]] + 
-                                      random.gs.line[detectionLine[i]] +
-                                      long.term.trend * detectionYear[i]
+                                      random.gs.line[detectionLine[i]] 
     }
 
     #using this model, get predicted group size for each line and year
@@ -152,7 +151,6 @@ cat("
     #interaction
     beta.covariate_int ~ dnorm(0,0.001)
 
-
     #Observation model:
     for(j in 1:n.Lines){
       for(t in 1:n.Years){
@@ -172,7 +170,8 @@ cat("
                             beta.covariateT_cov1 * temporalMatrix1[j,t+1] +
                             beta.covariateS_cov2 * spatialMatrix2[j,t+1] + 
                             beta.covariateT_cov2 * temporalMatrix2[j,t+1] +
-                            beta.covariate_int * interactionMatrix[j,t+1] #space x time interaction
+                            beta.covariate_int * interactionMatrix[j,t+1] + 
+                            random.d.site[site[j]]
 
     }}
 
@@ -182,4 +181,4 @@ cat("
     }
 
     }
-    ",fill=TRUE,file="combined_model_covariateTS_ar1.txt")
+    ",fill=TRUE,file="combined_model_covariate_interaction.txt")
