@@ -35,6 +35,7 @@ Get population data
 ```{r, warning=FALSE}
 library(magrittr)
 library(plyr); library(dplyr)
+library(ggplot2)
 
 #subset
 allData<-subset(allData,Year>2006 & Year<2017)
