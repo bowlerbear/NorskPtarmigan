@@ -206,20 +206,36 @@ setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
 save(out1,file="out1_Interaction_winterTemp_Rodents.RData")
 
 ```
-#plotting the data by 
+#plotting the data by temperature
 
 ```{r}
-#get total indivd per rapport per year
+#get total indivd per line per year
+totalIndiv_RY <- ddply(allData,.(Year,LinjeID,Rapporteringsniva),summarise,totalIndiv=sum(totalIndiv),
+                     SettSmagnager=max(SettSmagnager,na.rm=T),transectLength=max(LengdeTaksert,na.rm=T))
 
-totalIndiv_RY <- ddply(allData,.(Year,Rapporteringsniva),summarise,totalIndiv=sum(totalIndiv,na.rm=T),
-                     rodentprop=mean(SettSmagnager,na.rm=T))
+totalIndiv_RY <- ddply(totalIndiv_RY,.(Year,Rapporteringsniva),summarise,
+                       totalIndiv=mean(totalIndiv/transectLength,na.rm=T),
+                       rodentprop=mean(SettSmagnager[!is.na(SettSmagnager)&!is.infinite(SettSmagnager)]))
 
-#get average temp per rapp
+#get average temp per rapp per year
+#winterData$Rapporteringsniva<-allData$Rapporteringsniva[match(winterData$site,allData$LinjeID)]
+#winterData_RY <- ddply(winterData,.(Year,Rapporteringsniva),summarise,temp=mean(temp))
+#totalIndiv_RY <- merge(totalIndiv_RY,winterData_RY,by=c("Year","Rapporteringsniva"))
+#get average temp per rapp 
 winterData$Rapporteringsniva<-allData$Rapporteringsniva[match(winterData$site,allData$LinjeID)]
-winterData_RY <- ddply(winterData,.(Year,Rapporteringsniva),summarise,temp=mean(temp))
+winterData_RY <- ddply(winterData,.(Rapporteringsniva),summarise,temp=mean(temp))
+totalIndiv_RY <- merge(totalIndiv_RY,winterData_RY,by=c("Rapporteringsniva"))
 
-totalIndiv_RY <- merge(totalIndiv_RY,winterData_RY,by=c("Year","Rapporteringsniva"))
+#raw graph
+qplot(rodentprop,totalIndiv,data=totalIndiv_RY,colour=temp)+
+  scale_colour_gradient(low="steelblue",high="red")
+
+#cut temp into a factor
+totalIndiv_RY$tempF<-cut_number(totalIndiv_RY$temp,n=2)
+qplot(asin(sqrt(rodentprop)),totalIndiv,data=totalIndiv_RY)+
+  facet_wrap(~tempF)+
+  stat_smooth(method="lm")
 
 ```
 
-qplot(rodentprop,totalIndiv,data=totalIndiv_RY,colour=temp)
+
