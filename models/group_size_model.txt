@@ -78,7 +78,7 @@
                                     random.gs.year[t]+ 
                                     random.gs.line[j]+
                                     random.gs.site2[site2[j]]+
-                                    randomJT[site2[j],t]
+                                    randomJT[allCombos[j,1],allCombos[t,2]]
      }
     }
 
