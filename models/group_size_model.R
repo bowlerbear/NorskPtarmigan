@@ -58,19 +58,11 @@ cat("
     
     }
 
-
-    #times the re by the indices
-    for(k in 1:n.allCombos){
-      for(i in 1:N){
-        out[i,k]<-random.gs.site2.year[detectionSiteYear[i]]*TransYrIdx[i,k]
-      }
-        out2[k]<-max(out[,k],0)
+    for(t in 1:n.Years){
+      randomSY2[t] <- mean(random.gs.site2.year[detectionYear[t]])
     }
-
-
-    ##then convert them to a t,j matrix
-    for(k in 1:n.allCombos){
-      randomJT[allCombos[k,1],allCombos[k,2]] <- out2[k]    
+    for(j in 1:n.Sites2){
+      randomSY3[j] <- mean(random.gs.site2.year[detectionSite[j]])
     }
 
     #using this model, get predicted group size for each line and year
@@ -79,8 +71,8 @@ cat("
         log(predGroupSize[j,t]) <- int.gs + 
                                     random.gs.year[t]+ 
                                     random.gs.line[j]+
-                                    random.gs.site2[site2[j]]+
-                                    randomJT[site2[j],t]
+                                    random.gs.site2[site2[j]]
+                                    #random.gs.site2.year[t,site2[j]]
      }
     }
 

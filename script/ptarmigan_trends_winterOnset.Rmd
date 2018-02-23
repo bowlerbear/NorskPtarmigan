@@ -127,7 +127,7 @@ bugs.data$spatialMatrix2 <- bugs.data$spatialMatrix^2#also add a polynomial term
 #temporal
 tMmelted<-melt(bugs.data$temporalMatrix)
 allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
-                                           interaction(tMmelted$Var2,tMmelted$Var1))]
+                                           interaction(tMmelted[,2],tMmelted[,1]))]
 
 ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
   geom_point(aes(colour=factor(Fylkesnavn)))+
@@ -138,7 +138,7 @@ ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
 #spatial
 tMmelted<-melt(bugs.data$spatialMatrix)
 allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
-                                           interaction(tMmelted$Var2,tMmelted$Var1))]
+                                           interaction(tMmelted[,2],tMmelted[,1]))]
 
 ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
   geom_point(aes(colour=factor(Fylkesnavn)))+
@@ -153,7 +153,7 @@ ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
 ```{r results='asis'}
 tMmelted<-melt(bugs.data$temporalMatrix)
 allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
-                                           interaction(tMmelted$Var2,tMmelted$Var1))]
+                                           interaction(tMmelted[,2],tMmelted[,1]))]
 
 ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
   geom_point(aes(colour=factor(OmradeID)))+
@@ -164,7 +164,7 @@ ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
 
 tMmelted<-melt(bugs.data$spatialMatrix)
 allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
-                                           interaction(tMmelted$Var2,tMmelted$Var1))]
+                                           interaction(tMmelted[,2],tMmelted[,1]))]
 
 ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
   geom_point(aes(colour=factor(OmradeID)))+
