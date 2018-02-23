@@ -32,6 +32,14 @@ winterData <- ldply(tempFiles, function(x){
 })
 
 save(winterData,file="winterData_JanFeb.RData")
+```
+
+Load climate file
+```{r}
+
+setwd("/data/home/diana.bowler/climaticFiles")
+load("winterData_JanFeb.RData")
+library(lubridate)
 
 #get average per site/lineid
 winterData$temp <- as.numeric(as.character(winterData$temp))
@@ -91,7 +99,7 @@ bugs.data$spatialMatrix2 <- bugs.data$spatialMatrix^2#also add a polynomial term
 #temporal
 tMmelted<-melt(bugs.data$temporalMatrix)
 allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
-                                           interaction(tMmelted$X2,tMmelted$X1))]
+                                           interaction(tMmelted[,2],tMmelted[,1]))]
 
 ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
   geom_point(aes(colour=factor(Fylkesnavn)))+
@@ -102,7 +110,7 @@ ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
 #spatial
 tMmelted<-melt(bugs.data$spatialMatrix)
 allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
-                                           interaction(tMmelted$X2,tMmelted$X1))]
+                                           interaction(tMmelted[,2],tMmelted[,1]))]
 
 ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
   geom_point(aes(colour=factor(Fylkesnavn)))+
@@ -117,7 +125,7 @@ ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
 ```{r results='asis'}
 tMmelted<-melt(bugs.data$temporalMatrix)
 allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
-                                           interaction(tMmelted$X2,tMmelted$X1))]
+                                           interaction(tMmelted[,2],tMmelted[,1]))]
 
 ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
   geom_point(aes(colour=factor(OmradeID)))+
@@ -129,7 +137,7 @@ ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
 
 tMmelted<-melt(bugs.data$spatialMatrix)
 allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
-                                           interaction(tMmelted$X2,tMmelted$X1))]
+                                           interaction(tMmelted[,2],tMmelted[,1]))]
 
 ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
   geom_point(aes(colour=factor(OmradeID)))+
@@ -156,30 +164,37 @@ bugs.data$spatialMatrix2<-bugs.data$spatialMatrix2-median(bugs.data$spatialMatri
 #specify as covaroate 1
 
 ```{r}
-
-
-```
-
-#also get the rodent data - run code in XXX.
-
-````{r}
-
+bugs.data$spatialMatrix1 <- bugs.data$spatialMatrix
+bugs.data$temporalMatrix1 <- bugs.data$temporalMatrix
 
 ```
 
+#also get the rodent data - run code in the rodent Rmd
 
+```{r}
+bugs.data$spatialMatrix2 <- bugs.data$spatialMatrix
+bugs.data$temporalMatrix2 <- bugs.data$temporalMatrix
+bugs.data$interactionMatrix <- bugs.data$spatialMatrix1*bugs.data$temporalMatrix2
+
+```
 
 #Fit a model with ar1 term
 ```{r}
+source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
 
 #year one priors
 bugs.data$year1<-as.numeric(apply(my.n,1,function(x)ifelse(!is.na(x[1]),x[1],max(x,na.rm=T))))
 bugs.data$year1[bugs.data$year1==0]<-1
 
-params <- c("int.d","beta.auto","beta.covariateS","beta.covariateT","pred.Time","pred.Space")
+params <- c("int.d","beta.auto",
+            "beta.covariateS_cov1","beta.covariateT_cov1",
+            "beta.covariateS_cov2","beta.covariateT_cov2",
+            "beta.covariate_int",
+            "line.d.sd","site.d.sd")
 
-out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS_ar1.txt", n.thin=nt,
-               n.chains=3, n.burnin=400,n.iter=5000,parallel = T)
+setwd("/data/home/diana.bowler/NorskPtarmigan/models")
+out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariate_interaction.txt", n.thin=nt,
+               n.chains=3, n.burnin=8000,n.iter=40000,parallel = T)
 
 ```
 
@@ -187,7 +202,40 @@ out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS_ar1.txt"
 
 ```{r}
 print(out1,2)
+setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
 save(out1,file="out1_Interaction_winterTemp_Rodents.RData")
 
 ```
+#plotting the data by temperature
+
+```{r}
+#get total indivd per line per year
+totalIndiv_RY <- ddply(allData,.(Year,LinjeID,Rapporteringsniva),summarise,totalIndiv=sum(totalIndiv),
+                     SettSmagnager=max(SettSmagnager,na.rm=T),transectLength=max(LengdeTaksert,na.rm=T))
+
+totalIndiv_RY <- ddply(totalIndiv_RY,.(Year,Rapporteringsniva),summarise,
+                       totalIndiv=mean(totalIndiv/transectLength,na.rm=T),
+                       rodentprop=mean(SettSmagnager[!is.na(SettSmagnager)&!is.infinite(SettSmagnager)]))
+
+#get average temp per rapp per year
+#winterData$Rapporteringsniva<-allData$Rapporteringsniva[match(winterData$site,allData$LinjeID)]
+#winterData_RY <- ddply(winterData,.(Year,Rapporteringsniva),summarise,temp=mean(temp))
+#totalIndiv_RY <- merge(totalIndiv_RY,winterData_RY,by=c("Year","Rapporteringsniva"))
+#get average temp per rapp 
+winterData$Rapporteringsniva<-allData$Rapporteringsniva[match(winterData$site,allData$LinjeID)]
+winterData_RY <- ddply(winterData,.(Rapporteringsniva),summarise,temp=mean(temp))
+totalIndiv_RY <- merge(totalIndiv_RY,winterData_RY,by=c("Rapporteringsniva"))
+
+#raw graph
+qplot(rodentprop,totalIndiv,data=totalIndiv_RY,colour=temp)+
+  scale_colour_gradient(low="steelblue",high="red")
+
+#cut temp into a factor
+totalIndiv_RY$tempF<-cut_number(totalIndiv_RY$temp,n=2)
+qplot(asin(sqrt(rodentprop)),totalIndiv,data=totalIndiv_RY)+
+  facet_wrap(~tempF)+
+  stat_smooth(method="lm")
+
+```
+
 

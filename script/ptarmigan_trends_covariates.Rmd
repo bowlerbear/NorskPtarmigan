@@ -35,6 +35,7 @@ Get population data
 ```{r, warning=FALSE}
 library(magrittr)
 library(plyr); library(dplyr)
+library(ggplot2)
 
 #subset
 allData<-subset(allData,Year>2006 & Year<2017)
@@ -97,9 +98,9 @@ allDetections<-subset(allData,totalIndiv>0&!is.na(totalIndiv))
 #get indices of sites
 allDetections<-merge(allDetections[,-c(2:7)],siteInfo,by="Line",all.x=T,sort=FALSE)
 allDetections$detectionLineYear<-
-  as.numeric(factor(interaction(allDetections$LinjeID,(allDetections$Year-2006))))
+  as.numeric(factor(interaction(allDetections$LinjeID,allDetections$Year)))
 allDetections$detectionSiteYear<-
-  as.numeric(factor(interaction(allDetections$Rapporteringsniva,(allDetections$Year-2006))))
+  as.numeric(factor(interaction(allDetections$Rapporteringsniva,allDetections$Year)))
 
 head(allDetections)
 
