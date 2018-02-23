@@ -146,16 +146,19 @@ ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
   theme(legend.position="none")+
   ggtitle("spatial")
 
+
+
+
 ```
 
 #Alternative plotting
 
 ```{r results='asis'}
 tMmelted<-melt(bugs.data$temporalMatrix)
-allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
+nuIndivs$CovariateT<-tMmelted$value[match(interaction(nuIndivs$Year,nuIndivs$Line),
                                            interaction(tMmelted[,2],tMmelted[,1]))]
 
-ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
+ggplot(nuIndivs,aes(x=CovariateT,y=nuTotal,group=LinjeID))+
   geom_point(aes(colour=factor(OmradeID)))+
   theme(legend.position="none")+
   ggtitle("temporal")+
@@ -163,17 +166,38 @@ ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
 
 
 tMmelted<-melt(bugs.data$spatialMatrix)
-allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
+nuIndivs$CovariateS<-tMmelted$value[match(interaction(nuIndivs$Year,nuIndivs$Line),
                                            interaction(tMmelted[,2],tMmelted[,1]))]
 
-ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
+ggplot(nuIndivs,aes(x=CovariateS,y=nuTotal,group=LinjeID))+
   geom_point(aes(colour=factor(OmradeID)))+
   theme(legend.position="none")+
   ggtitle("spatial")+
   facet_wrap(~Fylkesnavn)
 
+#fixed spatial pattern
+nuIndivs$CovariateSF<-spatialDF$value[match(nuIndivs$LinjeID,spatialDF$LinjeID)]
+
+ggplot(nuIndivs,aes(x=CovariateSF,y=nuTotal,group=LinjeID))+
+  geom_point(aes(colour=factor(OmradeID)))+
+  theme(legend.position="none")+
+  ggtitle("spatial")+
+  facet_wrap(~Fylkesnavn)
+
+
 ```
 
+What does a naive analysis say
+
+```{r}
+
+glm1<-glm(nuTotal~CovariateT + CovariateS, family="poisson",data=nuIndivs,offset=log(maxTransectLength))
+summary(glm1)
+
+glm1<-glm(nuTotal~CovariateT + CovariateSF, family="poisson",data=nuIndivs,offset=log(maxTransectLength))
+summary(glm1)
+
+```
 
 Spatial pattern and temporal anomalies
 
@@ -188,13 +212,14 @@ bugs.data$spatialMatrix2<-bugs.data$spatialMatrix2-median(bugs.data$spatialMatri
 
 ```
 
-
 #Fit a basic model against abundance
 
 ```{r}
+source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
 
 params <- c("int.d","beta.covariateS","beta.covariateT","pred.Time","pred.Space")
 
+setwd("/data/home/diana.bowler/NorskPtarmigan/models")
 out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS.txt", n.thin=nt,
                n.chains=3, n.burnin=400,n.iter=5000,parallel = T)
 
@@ -204,7 +229,7 @@ out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS.txt", n.
 
 ```{r}
 print(out1,2)
-save(out1,file="out1_winterOnset.RData")
+save(out1,file="out1_winterOnset_basic.RData")
 
 ```
 
@@ -258,5 +283,34 @@ print(out1,2)
 
 setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
 save(out1,file="out1_winterOnset_re.RData")
+
+```
+
+Model checking
+
+```{r}
+
+#http://xavier-fim.net/packages/ggmcmc/
+
+library(ggmcmc)
+bayes.mod.fit.gg <- ggs(out1$samples,family="beta.covariateS")
+ggs_density(bayes.mod.fit.gg)
+bayes.mod.fit.gg <- ggs(out1$samples,family="beta.covariateT")
+ggs_density(bayes.mod.fit.gg)
+ggs_histogram(bayes.mod.fit.gg)
+ggs_traceplot(bayes.mod.fit.gg)
+ggs_running(bayes.mod.fit.gg)
+ggs_compare_partial(bayes.mod.fit.gg)
+ggs_autocorrelation(bayes.mod.fit.gg)
+ggmcmc(bayes.mod.fit.gg, file = "bayes_fit_ggmcmc.pdf")
+
+```
+
+Add predictions to the data
+
+```{r}
+
+out2<-update(out1,parameters.to.save="expNuIndivs.new",n.iter=1000)
+ggs_ppmean(ggs(out2$samples),outcome=c(as.numeric(my.n),2))
 
 ```

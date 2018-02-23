@@ -76,17 +76,13 @@ cat("
     for(i in 1:N){
       GroupSize[i] ~ dpois(expGroupSize[i])
       log(expGroupSize[i]) <- int.gs + random.gs.year[detectionYear[i]] + 
-                                      random.gs.line[detectionLine[i]] +
-                                      long.term.trend * detectionYear[i] +
-                                      detectionYear[i] * random.gs.trend.line[detectionLine[i]]
+                                      random.gs.line[detectionLine[i]] 
     }
 
     #using this model, get predicted group size for each line and year
     for(t in 1:n.Years){
       for(j in 1:n.Lines){
-        log(predGroupSize[j,t]) <- int.gs + random.gs.year[t] + random.gs.line[j] + 
-                                    random.gs.trend.line[j] * t +
-                                    long.term.trend * t
+        log(predGroupSize[j,t]) <- int.gs + random.gs.year[t] + random.gs.line[j] 
       }
     }
 

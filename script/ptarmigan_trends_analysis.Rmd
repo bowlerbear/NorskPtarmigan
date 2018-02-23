@@ -185,7 +185,7 @@ save(out1,file="out1_ptarmigan_noTrends2.RData")
 ```{r}
 setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
 load("out1_ptarmigan_noTrends2.RData")
-print(out1)
+print(out1$summary,2)
 
 ```
 
