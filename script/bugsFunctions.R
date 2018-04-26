@@ -10,6 +10,7 @@ library(ggplot2)
 set.factory("bugs::Conjugate", FALSE, type="sampler")
 
 # Default parameters
+<<<<<<< HEAD
 ni <- 6000   ;   nb <- 2000   ;   nt <- 2   ;   nc <- 3
 
 
@@ -59,3 +60,6 @@ getBUGSFits<-function(model,param="Density"){
   modelSummary$Year <- as.numeric(as.character(modelSummary$yearIndex)) + 2006
   return(modelSummary)
 }
+=======
+ni <- 6000   ;   nb <- 2000   ;   nt <- 2   ;   nc <- 3
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893

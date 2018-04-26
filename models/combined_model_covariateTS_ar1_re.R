@@ -24,6 +24,10 @@ cat("
     esw[i] <- sqrt(pi * sig2.df[i] / 2) 
     f0[i] <- 1/esw[i] #assuming all detected on the line
     
+<<<<<<< HEAD
+=======
+    # LIKELIHOOD
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
     # using zeros trick
     y[i] ~ dunif(0,W) 
     L.f0[i] <- exp(-y[i]*y[i] / (2*sig2.df[i])) * 1/esw[i] #y are the distances
@@ -58,21 +62,48 @@ cat("
     year.sd ~ dunif(0,10)
     year.tau <- pow(year.sd,-2)
     for(t in 1:n.Years){
+<<<<<<< HEAD
       random.gs.year[t] ~ dnorm(0,year.tau)
     }
 
+=======
+    random.gs.year[t] ~ dnorm(0,year.tau)
+    }
+
+    #long-term trend with random site effects
+    long.term.trend ~ dnorm(0,0.001)
+    trend.line.sd ~ dunif(0,10)
+    trend.line.tau <- pow(trend.line.sd,-2)
+    for(j in 1:n.Lines){
+      random.gs.trend.line[j] ~ dnorm(0,trend.line.tau)
+    }
+
+
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
     #Model
     #for each detection, model group size
     for(i in 1:N){
       GroupSize[i] ~ dpois(expGroupSize[i])
       log(expGroupSize[i]) <- int.gs + random.gs.year[detectionYear[i]] + 
+<<<<<<< HEAD
                                       random.gs.line[detectionLine[i]] 
+=======
+                                      random.gs.line[detectionLine[i]] +
+                                      long.term.trend * detectionYear[i] +
+                                      detectionYear[i] * random.gs.trend.line[detectionLine[i]]
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
     }
 
     #using this model, get predicted group size for each line and year
     for(t in 1:n.Years){
       for(j in 1:n.Lines){
+<<<<<<< HEAD
         log(predGroupSize[j,t]) <- int.gs + random.gs.year[t] + random.gs.line[j] 
+=======
+        log(predGroupSize[j,t]) <- int.gs + random.gs.year[t] + random.gs.line[j] + 
+                                    random.gs.trend.line[j] * t +
+                                    long.term.trend * t
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
       }
     }
 
@@ -87,7 +118,11 @@ cat("
     line.d.sd ~ dunif(0,10)
     line.d.tau <- pow(line.d.sd,-2)
     for(j in 1:n.Lines){
+<<<<<<< HEAD
       random.d.line[j] ~ dnorm(0,line.d.tau)
+=======
+    random.d.line[j] ~ dnorm(0,line.d.tau)
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
     }
     
     #random site effect
@@ -102,13 +137,21 @@ cat("
     site2.d.tau <- pow(site2.d.sd,-2)
     for(j in 1:n.Sites2){
       random.d.site2[j] ~ dnorm(0,site2.d.tau)
+<<<<<<< HEAD
+=======
+
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
     }
     
     #random time effect
     year.d.sd ~ dunif(0,10)
     year.d.tau <- pow(year.d.sd,-2)
     for(t in 1:n.Years){
+<<<<<<< HEAD
       random.d.year[t] ~ dnorm(0,year.d.tau)
+=======
+    random.d.year[t] ~ dnorm(0,year.d.tau)
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
     }
 
     #random site and time effect
@@ -129,6 +172,7 @@ cat("
       }
     }
 
+<<<<<<< HEAD
     #overdispersion
     obs.d.sd ~ dunif(0,10)
     obs.d.tau <- pow(obs.d.sd,-2)
@@ -138,6 +182,8 @@ cat("
       }
     }
 
+=======
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
     #slopes
     beta.auto ~ dunif(-2,2)
     beta.covariateS ~ dnorm(0,0.001)
@@ -145,6 +191,7 @@ cat("
     beta.covariateT ~ dnorm(0,0.001)
     #beta.covariateA ~ dnorm(0,0.001)
 
+<<<<<<< HEAD
 
    #Observation model:
     for(j in 1:n.Lines){
@@ -153,6 +200,14 @@ cat("
         expNuIndivs[j,t] <- (predDensity[j,t] * (TransectLength[j,t]/1000 * predESW[j,t]/1000 * 2))
         predDensity[j,t] ~ dpois(Density[j,t])   
     }}
+=======
+    #Observation model:
+    for(j in 1:n.Lines){
+      for(t in 1:n.Years){
+        NuIndivs[j,t] ~ dpois(expNuIndivs[j,t])
+        expNuIndivs[j,t] <- (Density[j,t] * (TransectLength[j,t]/1000 * predESW[j,t]/1000 * 2))
+      }}
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 
     #State model
     for(j in 1:n.Lines){
@@ -161,18 +216,47 @@ cat("
       #linear predictor on density
         log(Density[j,t+1]) <- int.d + 
                             beta.auto * log(Density[j,t]) +
+<<<<<<< HEAD
                             random.d.line[j] +
                             beta.covariateS * spatialMatrix[j] + 
                             #beta.covariateS2 * spatialMatrix2[j] +
                             beta.covariateT * temporalMatrix[j,t+1] 
+=======
+                            random.d.line[j] + 
+                            beta.covariateS * spatialMatrix[j,t+1] + 
+                            beta.covariateT * temporalMatrix[j,t+1] +
+                            random.d.site2[site2[j]]
+                            
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
     }}
 
     #Priors on the first year of density
     for(j in 1:n.Lines){
+<<<<<<< HEAD
         Density[j,1] ~ dpois(year1[j]/0.6)
     }
 
     #calculate the Bayesian p-value
+=======
+        Density[j,1] ~ dpois(year1[j])
+    }
+
+    #get predicted temporal effects
+    for(j in 1:n.Lines){
+      for(t in 1:n.Years){
+        pred.Time[j,t] <- int.d + beta.covariateT * temporalMatrix[j,t]
+      }}
+
+
+    #get predicted spatial effects
+    for(j in 1:n.Lines){
+      for(t in 1:n.Years){
+        #pred.Space[j,t] <- int.d + beta.covariateS * spatialMatrix[j,t]+ beta.covariateS2 * spatialMatrix2[j,t]
+        pred.Space[j,t] <- int.d + beta.covariateS * spatialMatrix[j,t]
+      }}
+
+   #calculate the Bayesian p-value
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
     for(j in 1:n.Lines){
       for(t in 1:n.Years){
         expNuIndivs.new[j,t] ~ dpois(expNuIndivs[j,t])      

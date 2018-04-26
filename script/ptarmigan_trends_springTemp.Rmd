@@ -11,9 +11,15 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```
 
+<<<<<<< HEAD
 Covariates at the level of the line
 
 spring data (april and may)
+=======
+#Covariates at the level of the line
+
+#spring data (april and may)
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 
 ```{r results='asis'}
 
@@ -33,6 +39,7 @@ springData <- ldply(tempFiles, function(x){
 
 save(springData,file="springData_AprilMay.RData")
 
+<<<<<<< HEAD
 ```
 
 Formatting the files for analysis
@@ -43,6 +50,8 @@ setwd("/data/home/diana.bowler/climaticFiles")
 load("springData_AprilMay.RData")
 library(lubridate)
 
+=======
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 #get average per site/lineid
 springData$temp <- as.numeric(as.character(springData$temp))
 springData$Year <- year(springData$Date)
@@ -51,7 +60,10 @@ springData <- ddply(springData, .(Year,site), summarise, temp = mean(temp))
 #add spatial cluster units
 springData$OmradeID<-allData$OmradeID[match(springData$site,allData$LinjeID)]
 springData$Fylke<-allData$Fylkesnavn[match(springData$site,allData$LinjeID)]
+<<<<<<< HEAD
 springData$Rapporteringsniva<-allData$Rapporteringsniva[match(springData$site,allData$LinjeID)]
+=======
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 
 #plotting
 qplot(Year,temp,data=springData,geom=c("point","line"),colour=OmradeID)+
@@ -68,7 +80,11 @@ qplot(Year,temp,data=springDataSummary,geom=c("point","line"))+theme_light()
 
 #Organise the covariate
 
+<<<<<<< HEAD
 ```{r, results='asis'}
+=======
+```{r}
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 
 #choose my covariate
 myCovariate =springData
@@ -88,14 +104,21 @@ for(i in 1:nrow(covariateMatrix)){
 }
 
 #split into spatial and temporal anomalies
+<<<<<<< HEAD
 #spatialMatrix<-as.numeric(rowMeans(covariateMatrix))
 spatialMatrix<-as.numeric(apply(covariateMatrix,1,function(x) median(x,na.rm=T)))
+=======
+spatialMatrix<-as.numeric(rowMeans(covariateMatrix))
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 temporalMatrix<-as.numeric(colMeans(covariateMatrix))
 
 #look at summaries
 summary(spatialMatrix)
 summary(temporalMatrix)
+<<<<<<< HEAD
 #more spatial than temporal variation
+=======
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 
 #make a DF
 temporalDF<-data.frame(Year=dimnames(my.n)[[2]],value=temporalMatrix)
@@ -109,7 +132,11 @@ bugs.data$spatialMatrix2 <- bugs.data$spatialMatrix^2#also add a polynomial term
 #temporal
 tMmelted<-melt(bugs.data$temporalMatrix)
 allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
+<<<<<<< HEAD
                                            interaction(tMmelted[,2],tMmelted[,1]))]
+=======
+                                           interaction(tMmelted$X2,tMmelted$X1))]
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 
 ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
   geom_point(aes(colour=factor(Fylkesnavn)))+
@@ -120,18 +147,27 @@ ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
 #spatial
 tMmelted<-melt(bugs.data$spatialMatrix)
 allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
+<<<<<<< HEAD
                                            interaction(tMmelted[,2],tMmelted[,1]))]
+=======
+                                           interaction(tMmelted$X2,tMmelted$X1))]
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 
 ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
   geom_point(aes(colour=factor(Fylkesnavn)))+
   geom_line(aes(colour=factor(Fylkesnavn)))+
   theme(legend.position="none")+
   ggtitle("spatial")
+<<<<<<< HEAD
+=======
+
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 ```
 
 #Alternative plotting
 
 ```{r results='asis'}
+<<<<<<< HEAD
 
 springData_Line<-ddply(springData,.(site),summarise,temp=mean(temp))
 springData_Line$tempOrder <- cut(springData_Line$temp,9)
@@ -142,11 +178,17 @@ allData$tempOrder <- springData_Line$tempOrder[match(allData$LinjeID,springData_
 tMmelted<-melt(bugs.data$temporalMatrix)
 allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
                                            interaction(tMmelted[,2],tMmelted[,1]))]
+=======
+tMmelted<-melt(bugs.data$temporalMatrix)
+allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
+                                           interaction(tMmelted$X2,tMmelted$X1))]
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 
 ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
   geom_point(aes(colour=factor(OmradeID)))+
   theme(legend.position="none")+
   ggtitle("temporal")+
+<<<<<<< HEAD
   stat_smooth(method="lm")+
   facet_wrap(~tempOrder,scales="free")
 
@@ -154,11 +196,21 @@ ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
 tMmelted<-melt(bugs.data$spatialMatrix)
 allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
                                            interaction(tMmelted[,2],tMmelted[,1]))]
+=======
+  facet_wrap(~Fylkesnavn,scales="free")
+
+#negative trends driven by warm year
+
+tMmelted<-melt(bugs.data$spatialMatrix)
+allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
+                                           interaction(tMmelted$X2,tMmelted$X1))]
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 
 ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
   geom_point(aes(colour=factor(OmradeID)))+
   theme(legend.position="none")+
   ggtitle("spatial")+
+<<<<<<< HEAD
   stat_smooth(method="lm")+
   facet_wrap(~tempOrder)
 
@@ -179,6 +231,9 @@ ggplot(allData_rodents,aes(x=Covariate,y=totalIndiv))+
   facet_wrap(~tempOrder)+
   scale_y_log10()+
   stat_smooth(method="lm")
+=======
+  facet_wrap(~Fylkesnavn)
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 
 ```
 
@@ -189,6 +244,7 @@ Spatial pattern and temporal anomalies
 
 #the temporal anomalies are the same
 #the spatial pattern is now assumed to be fixed
+<<<<<<< HEAD
 bugs.data$spatialMatrix <- spatialMatrix
 bugs.data$spatialMatrix2 <-bugs.data$spatialMatrix^2
 
@@ -200,11 +256,16 @@ ggplot(df,aes(x=sv,y=tv))+
   ggtitle("Spring temperature")+xlab("spatial variation")+ylab("temporal variation")+
   stat_smooth(method="lm")
 
+=======
+bugs.data$spatialMatrix <- cbind(spatialMatrix,spatialMatrix,spatialMatrix,spatialMatrix,spatialMatrix,spatialMatrix,spatialMatrix,spatialMatrix,spatialMatrix,spatialMatrix)
+bugs.data$spatialMatrix2 <-bugs.data$spatialMatrix^2
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 bugs.data$spatialMatrix<-bugs.data$spatialMatrix-median(bugs.data$spatialMatrix)
 bugs.data$spatialMatrix2<-bugs.data$spatialMatrix2-median(bugs.data$spatialMatrix2)
 
 ```
 
+<<<<<<< HEAD
 Fit glm
 
 ```{r}
@@ -512,11 +573,36 @@ weather interaction effects -additive effects of rodents - GOMPERTZ model
 
 ```{r}
 source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
+=======
+
+#Fit a basic model against abundance
+
+```{r}
+
+params <- c("int.d","beta.covariateS","beta.covariateT","pred.Time","pred.Space")
+
+out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS.txt", n.thin=nt,
+               n.chains=3, n.burnin=400,n.iter=5000,parallel = T)
+
+```
+
+#Print the output
+
+```{r}
+print(out1,2)
+save(out1,file="out1_springTemp.RData")
+
+```
+
+#Fit a model with ar1 term
+```{r}
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 
 #year one priors
 bugs.data$year1<-as.numeric(apply(my.n,1,function(x)ifelse(!is.na(x[1]),x[1],max(x,na.rm=T))))
 bugs.data$year1[bugs.data$year1==0]<-1
 
+<<<<<<< HEAD
 #predicted climatic range
 bugs.data$climaticGradient<-seq(min(bugs.data$spatialMatrix1),max(bugs.data$spatialMatrix1),length.out=1000)
 bugs.data$n.Preds<-length(bugs.data$climaticGradient)
@@ -728,3 +814,20 @@ simslistDF<-list(fit=out2$sims.list$fit,fit.new=out2$sims.list$fit.new)
 mean(simslistDF$fit.new>simslistDF$fit) 
 
 ```
+=======
+params <- c("int.d","beta.auto","beta.covariateS","beta.covariateT","pred.Time","pred.Space")
+
+out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS_ar1.txt", n.thin=nt,
+               n.chains=3, n.burnin=2000,n.iter=15000,parallel = T)
+
+```
+
+#Print the output
+
+```{r}
+print(out1,2)
+save(out1,file="out1_springTemp.RData")
+
+```
+
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893

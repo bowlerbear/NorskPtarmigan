@@ -185,7 +185,11 @@ save(out1,file="out1_ptarmigan_noTrends2.RData")
 ```{r}
 setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
 load("out1_ptarmigan_noTrends2.RData")
+<<<<<<< HEAD
 print(out1$summary,2)
+=======
+print(out1)
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 
 ```
 

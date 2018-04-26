@@ -146,17 +146,26 @@
     #covariate 2
     beta.covariateS_cov2 ~ dnorm(0,0.001)
     beta.covariateT_cov2 ~ dnorm(0,0.001)
+<<<<<<< HEAD
     beta.covariateTL_cov2 ~ dnorm(0,0.001)
     #interaction
     beta.covariate_int ~ dnorm(0,0.001)
     beta.covariate_intL ~ dnorm(0,0.001)
+=======
+    #interaction
+    beta.covariate_int ~ dnorm(0,0.001)
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 
     #Observation model:
     for(j in 1:n.Lines){
       for(t in 1:n.Years){
         NuIndivs[j,t] ~ dpois(expNuIndivs[j,t])
+<<<<<<< HEAD
         expNuIndivs[j,t] <- (predDensity[j,t] * (TransectLength[j,t]/1000 * predESW[j,t]/1000 * 2))
         predDensity[j,t] ~ dpois(Density[j,t])  
+=======
+        expNuIndivs[j,t] <- (Density[j,t] * (TransectLength[j,t]/1000 * predESW[j,t]/1000 * 2))
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
       }}
 
     #State model
@@ -165,6 +174,7 @@
       
       #linear predictor on density
         log(Density[j,t+1]) <- int.d + 
+<<<<<<< HEAD
 
                             beta.auto * log(Density[j,t]) +
                             random.d.line[j] +
@@ -177,11 +187,22 @@
 
                             beta.covariate_int * spatialMatrix1[j] * temporalMatrix2[j,t+1] +
                             beta.covariate_intL * spatialMatrix1[j] * temporalMatrix2[j,t]
+=======
+                            log(Density[j,t]) +
+                            random.d.line[j] + 
+                            beta.covariateS_cov1 * spatialMatrix1[j,t+1] + 
+                            beta.covariateT_cov1 * temporalMatrix1[j,t+1] +
+                            beta.covariateS_cov2 * spatialMatrix2[j,t+1] + 
+                            beta.covariateT_cov2 * temporalMatrix2[j,t+1] +
+                            beta.covariate_int * interactionMatrix[j,t+1] + 
+                            random.d.site[site[j]]
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 
     }}
 
     #Priors on the first year of density
     for(j in 1:n.Lines){
+<<<<<<< HEAD
         Density[j,1] ~ dpois(year1[j]/0.6)
     }
 
@@ -231,5 +252,10 @@
     }
 
 
+=======
+        Density[j,1] ~ dpois(year1[j])
+    }
+
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
     }
     

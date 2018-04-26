@@ -53,6 +53,7 @@ allDetections$propForest<-lineSummary$propForest[match(allDetections$LinjeID,lin
 #      temp$month <- month(temp$Date)
 #      subset(temp,month%in%c(7,8))#months of data collection
 #})
+<<<<<<< HEAD
 #setwd("/data/home/diana.bowler/NorskPtarmigan/additional_data_files")
 #save(precipData,file="precipData_surveyperiod.RData")
 #load("precipData_surveyperiod.RData")
@@ -64,6 +65,19 @@ allDetections$propForest<-lineSummary$propForest[match(allDetections$LinjeID,lin
 hist(allDetections$totalIndiv)
 #hist(allDetections$precip)
 #hist(sqrt(allDetections$precip+1))
+=======
+setwd("/data/home/diana.bowler/NorskPtarmigan/additional_data_files")
+#save(precipData,file="precipData_surveyperiod.RData")
+load("precipData_surveyperiod.RData")
+allDetections$precip<-as.numeric(precipData$precip[match(interaction(allDetections$LinjeID,allDetections$Date),
+                                                  interaction(precipData$site,precipData$Date))])
+allDetections$precipDay<-ifelse(allDetections$precip>0,1,0)
+table(allDetections$precipDay)
+
+hist(allDetections$totalIndiv)
+hist(allDetections$precip)
+hist(sqrt(allDetections$precip+1))
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 hist(allDetections$propForest)
 hist(allDetections$LinjeAvstand)
 
@@ -74,7 +88,11 @@ bugs.data <- list(W = 200,
                   detectionGroupSize = log(allDetections$totalIndiv+1),
                   GroupSize = allDetections$totalIndiv,
                   propForest = allDetections$propForest,
+<<<<<<< HEAD
                   #precip = sqrt(allDetections$precip+1),
+=======
+                  precip = sqrt(allDetections$precip+1),
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
                   zeros.dist = rep(0,nrow(allDetections)),
                   Time = log(allDetections$timeSince+1),
                   detectionLine =as.numeric(factor(allDetections$LinjeID)),
@@ -138,6 +156,7 @@ save(out1,file="out1_detection_precip.RData")
 
 ```
 
+<<<<<<< HEAD
 (3) Group size only
 
 ```{r}
@@ -195,3 +214,5 @@ lines(x, gx, col="dark red",lty=3)
 ```
 
 
+=======
+>>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
