@@ -22,6 +22,8 @@ vignettes/*.pdf
 # Temporary files created by R markdown
 *.utf8.md
 *.knit.md
+*.png
+*.RData
 .Rproj.user
 NorskPtarmigan.Rproj
 additional_data_files/*.RData
