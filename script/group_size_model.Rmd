@@ -116,22 +116,6 @@ bugs.data$allCombos<-as.matrix(allCombos)
 bugs.data$n.allCombos<-nrow(allCombos)
 bugs.data$TransYrIdx<-TransYrIdx
 
-#write BUGS code
-out<-matrix(nrow=nrow(allDetections),ncol=nrow(allCombos))
-out[]<-0
-out2<-as.numeric()
-#times the re by the indices
-for(k in 1:nrow(allCombos)){
-  for(i in 1:nrow(allDetections)){
-  out[i,k]<-allDetections$re[i]*TransYrIdx[i,k]
-  }
-  
-  out2[k]<-max(out[,k])
-}
-
-allCombos$re<-out2
-#convert in an j/t matrix
-
 bugs.data$indices<-unique(data.frame(allDetections[,c("Year","Rapporteringsniva","detectionSiteYear")]))
 
 ```

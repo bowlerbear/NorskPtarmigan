@@ -1,0 +1,237 @@
+---
+title: "combined_model_covariates"
+author: "Diana Bowler"
+date: "14 november 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+library(lubridate)
+
+```
+
+
+Spring:
+
+(1)End of June temperatures
+
+```{r}
+
+setwd("/data/home/diana.bowler/tempData")
+
+tempFiles <- list.files(getwd())
+juneData <- ldply(tempFiles, function(x){
+      temp <- read.delim(x)
+      temp <- subset(temp,site%in%nuIndivs$LinjeID)
+      temp$Date <- gsub("temperature_","",temp$map)
+      temp$Date <- as.Date(temp$Date, format="%Y_%m_%d")
+      temp$day <- day(temp$Date)
+      temp$month <- month(temp$Date)
+      subset(temp,(day %in% c(23:30) & month==6) | (day %in% c(1:7) & month==7))
+})
+
+#get average per site/lineid
+juneData$temp <- as.numeric(as.character(juneData$temp))
+juneData$Year <- year(juneData$Date)
+juneData <- ddply(juneData, .(Year,site), summarise, temp = mean(temp))
+
+```
+
+(2) April/May temperatures
+
+```{r}
+
+setwd("/data/home/diana.bowler/climaticFiles")
+load("springData_AprilMay.RData")
+
+#get average per site/lineid
+springData$temp <- as.numeric(as.character(springData$temp))
+springData$Year <- year(springData$Date)
+springData <- ddply(springData, .(Year,site), summarise, temp = mean(temp))
+
+springData_AprilMay <- springData
+
+```
+
+(3) Spring onset data - NDVI approach
+
+```{r}
+
+setwd("/data/home/diana.bowler/climaticFiles")
+
+load("springData.RData")
+springData<-ddply(springData,.(OmradeID,Year),summarise,value=median(value,na.rm=T))
+head(springData)
+
+```
+
+
+(4) Spring onset - snow depth approach
+
+```{r}
+
+setwd("/data/home/diana.bowler/climaticFiles/snowData")
+library(lubridate)
+
+tempFiles <- list.files(getwd())
+snowData <- ldply(tempFiles, function(x){
+      temp <- read.delim(x,as.is=T)
+      temp <- subset(temp,site%in%nuIndivs$LinjeID)
+      temp$Date <- gsub("snow_depth_","",temp$map)
+      temp$Date <- as.Date(temp$Date, format="%Y_%m_%d")
+      temp$month <- month(temp$Date)
+      temp$week <- week(temp$Date)
+      temp <- subset(temp,month%in%c(3:6))
+      temp$depth <- as.numeric(as.character(temp$depth))
+      return(temp)
+})
+
+#get average depth per site
+outS<-tapply(snowData$depth,list(snowData$site,snowData$Date),median)
+library(reshape2)
+snowData<-melt(outS)
+names(snowData)<-c("site","Date","depth")
+snowData$yday<-yday(as.Date(snowData$Date))
+snowData$Year<-year(as.Date(snowData$Date))
+snowData$Month<-month(as.Date(snowData$Date))
+
+#get 7 day rolling ahead means
+library(zoo)
+snowData<-ddply(snowData,.(site,Year),function(x){
+  x<-x[order(x$yday),]
+  x$rollingDepth<-rollmedian(x$depth,k=7,fill=NA)
+  return(x)
+})
+
+#get first day of year without 5-day snow depth above zero average
+snowData<-ddply(snowData,.(site,Year),summarise,
+                onset=min(yday[rollingDepth==0],na.rm=T))
+snowData$onset[is.infinite(snowData$onset)]<-max(snowData$onset[is.finite(snowData$onset)],na.rm=T)
+summary(snowData$onset)
+hist(snowData$onset)
+
+#rename it
+springSnowData <- snowData
+save(springSnowData, file="springSnowData.RData")
+
+```
+
+
+Winter data
+
+(1) temperatures
+
+```{r}
+setwd("/data/home/diana.bowler/climaticFiles")
+load("winterData_JanFeb.RData")
+
+#get average per site/lineid
+winterData$temp <- as.numeric(as.character(winterData$temp))
+winterData$Year <- year(winterData$Date)
+winterData <- ddply(winterData, .(Year,site), summarise, temp = mean(temp))
+
+
+```
+
+(2) onset - based on snow depth
+
+```{r}
+
+setwd("/data/home/diana.bowler/climaticFiles")
+load("snowData.RData")
+
+#get average depth per site
+outS<-tapply(snowData$depth,list(snowData$site,snowData$Date),median)
+library(reshape2)
+snowData<-melt(outS)
+names(snowData)<-c("site","Date","depth")
+
+#get 7 day rolling ahead means
+library(zoo)
+snowData$yday<-yday(as.Date(snowData$Date))
+snowData$Year<-year(as.Date(snowData$Date))
+snowData<-ddply(snowData,.(site,Year),function(x){
+  x<-x[order(x$yday),]
+  x$rollingDepth<-rollmedian(x$depth,k=7,fill=NA)
+  return(x)
+})
+
+snowData<-ddply(snowData,.(site,Year),summarise,
+                onset=min(yday[rollingDepth>0],na.rm=T))
+snowData$onset[is.infinite(snowData$onset)]<-249
+
+summary(snowData$onset)
+hist(snowData$onset)
+
+```
+
+(3) rain on snow
+
+```{r}
+
+setwd("/data/home/diana.bowler/climaticFiles")
+
+load("ROSData.RData")
+#clean columns
+ROSData$temp <- as.numeric(as.character(ROSData$temp))
+ROSData$precip <- as.numeric(as.character(ROSData$precip))
+ROSData$Year <- year(ROSData$Date)
+
+load("snowData.RData")
+
+#get average 
+#tapply is MUCH quicker than ddply
+outT<-tapply(ROSData$temp,list(ROSData$site,ROSData$Date),mean)
+outP<-tapply(ROSData$precip,list(ROSData$site,ROSData$Date),mean)
+outS<-tapply(snowData$depth,list(snowData$site,snowData$Date),mean)
+
+#reorganise
+library(reshape2)
+library(data.table)
+outTm<-melt(outT)
+names(outTm)<-c("site","Date","temp")
+outPm<-melt(outP)
+names(outPm)<-c("site","Date","precip")
+outAll<-merge(data.table(outTm),data.table(outPm),by=c("site","Date"))
+#also add snow data
+outSm<-melt(outS)
+names(outSm)<-c("site","Date","depth")
+outAll<-merge(outAll,data.table(outSm),by=c("site","Date"))
+outAll$Year <- year(outAll$Date)
+outAll$month <- month(outAll$Date)
+outAll$Year[outAll$month==12] <- outAll$Year[outAll$month==12]+1 #shift december into the following year winter
+
+#now count number of days above 0 amd precip and snow depth above 0 each year and site
+outAllSummary<-ddply(outAll,.(site,Year),summarise,ROS=sum(length(precip[precip>0&temp>0&depth>0])))
+ROSData<-outAllSummary
+
+hist(ROSData$ROS)
+```
+
+Combine all together
+
+```{r}
+
+#clean names
+names(springData_AprilMay)[3]<-"springTemp"
+names(winterData)[3]<-"winterTemp"
+names(snowData)[3]<-"winterOnset"
+
+#merge
+climateData<-merge(springData_AprilMay,winterData,by=c("site","Year"))
+climateData<-merge(climateData,snowData,by=c("site","Year"))
+climateData<-merge(climateData,ROSData,by=c("site","Year"))
+
+#get ommrade
+sites<-unique(allData[,c("LinjeID","OmradeID")])
+climateData$OmradeID<-sites$OmradeID[match(climateData$site,sites$LinjeID)]
+
+#add
+names(springData)[3]<-"springOnset"
+climateData<-merge(climateData,springData,by=c("OmradeID","Year"))
+
+save(climateData,file="climateData.RData")
+
+```

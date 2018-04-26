@@ -22,13 +22,12 @@ cat("
 
     for( i in 1:N){
     #linear predictor
-    mu.df[i] <- b.df.0 + b.group.size * detectionGroupSize[i] 
-                        + b.time * Time[i] + random.det.line[detectionLine[i]]
+    mu.df[i] <- b.df.0 + b.group.size * detectionGroupSize[i] + random.det.line[detectionLine[i]]
     
     # estimate of sd and var, given coeffs above
     sig.df[i] <- exp(mu.df[i])
     sig2.df[i] <- sig.df[i]*sig.df[i]
-    
+
     # effective strip width
     esw[i] <- sqrt(pi * sig2.df[i] / 2) 
     f0[i] <- 1/esw[i] #assuming all detected on the line

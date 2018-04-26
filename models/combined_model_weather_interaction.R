@@ -1,4 +1,5 @@
-
+#distance model
+cat("
     model{
 
     #################
@@ -138,27 +139,19 @@
       }
     }
 
-    #overdispersion 
-    obs.d.sd ~ dunif(0,10)
-    obs.d.tau <- pow(obs.d.sd,-2)
-    for(j in 1:n.Lines){
-      for(t in 1:n.Years){
-        random.d.obs[j,t] ~ dnorm(0,obs.d.tau)
-      }
-    }
-
     #slopes
     beta.auto ~ dunif(-2,2)
     beta.covariateS ~ dnorm(0,0.001)
-    #beta.covariateS2 ~ dnorm(0,0.001)
     beta.covariateT ~ dnorm(0,0.001)
-    #beta.covariateA ~ dnorm(0,0.001)
+    #interaction
+    beta.covariate_int ~ dnorm(0,0.001)
 
     #Observation model:
     for(j in 1:n.Lines){
       for(t in 1:n.Years){
         NuIndivs[j,t] ~ dpois(expNuIndivs[j,t])
-        expNuIndivs[j,t] <- (Density[j,t] * (TransectLength[j,t]/1000 * predESW[j,t]/1000 * 2))
+        expNuIndivs[j,t] <- (predDensity[j,t] * (TransectLength[j,t]/1000 * predESW[j,t]/1000 * 2))
+        predDensity[j,t] ~ dpois(Density[j,t])  
       }}
 
     #State model
@@ -170,36 +163,39 @@
                             beta.auto * log(Density[j,t]) +
                             random.d.line[j] + 
                             beta.covariateS * spatialMatrix[j] + 
-                            #beta.covariateS2 * spatialMatrix2[j] +
-                            beta.covariateT * temporalMatrix[j,t+1]+
-                            random.d.obs[j,t+1]
+                            beta.covariateT * temporalMatrix[j,t+1] +
+                            beta.covariate_int * spatialMatrix[j] * temporalMatrix[j,t+1] 
+
     }}
 
     #Priors on the first year of density
     for(j in 1:n.Lines){
-        Density[j,1] ~ dpois(year1[j])
+        Density[j,1] ~ dpois(year1[j]/0.6)
     }
 
-    #get predicted temporal effects
+    #calculate the Bayesian p-value
+    e <- 0.0001
     for(j in 1:n.Lines){
       for(t in 1:n.Years){
-        pred.Time[j,t] <- int.d + beta.covariateT * temporalMatrix[j,t]
-      }}
-
-
-    #get predicted spatial effects
-    for(j in 1:n.Lines){
-      for(t in 1:n.Years){
-        #pred.Space[j,t] <- int.d + beta.covariateS * spatialMatrix[j,t]+ beta.covariateS2 * spatialMatrix2[j,t]
-        pred.Space[j,t] <- int.d + beta.covariateS * spatialMatrix[j]
-      }}
-
-   #calculate the Bayesian p-value
-    for(j in 1:n.Lines){
-      for(t in 1:n.Years){
-        expNuIndivs.new[j,t] ~ dpois(expNuIndivs[j,t])      
+        chi2[j,t] <- pow((NuIndivs[j,t] - expNuIndivs[j,t]),2) / (sqrt(expNuIndivs[j,t])+e)
+        expNuIndivs.new[j,t] ~ dpois(expNuIndivs[j,t]) 
+        chi2.new[j,t] <- pow((expNuIndivs.new[j,t] - expNuIndivs[j,t]),2) / (sqrt(expNuIndivs[j,t])+e) # exp
       }
     }
+    
+    # Add up discrepancy measures for entire data set
+    for(t in 1:n.Years){
+      fit.t[t] <- sum(chi2[,t])                     
+      fit.new.t[t] <- sum(chi2.new[,t])             
+    }
+    fit <- sum(fit.t[])
+    fit.new <- sum(fit.new.t[])
+
+    #predicted effects along a climatic gradient
+    for(i in 1:n.Preds){
+      preds[i] <- beta.covariateT + beta.covariate_int* climaticGradient[i]
+    }
+
 
     }
-    
+    ",fill=TRUE,file="combined_model_weather_interaction.txt")

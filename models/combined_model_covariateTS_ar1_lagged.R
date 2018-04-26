@@ -1,4 +1,5 @@
-
+#distance model
+cat("
     model{
 
     #################
@@ -152,6 +153,7 @@
     beta.covariateS ~ dnorm(0,0.001)
     #beta.covariateS2 ~ dnorm(0,0.001)
     beta.covariateT ~ dnorm(0,0.001)
+    beta.covariateTP ~ dnorm(0,0.001)
     #beta.covariateA ~ dnorm(0,0.001)
 
     #Observation model:
@@ -172,6 +174,7 @@
                             beta.covariateS * spatialMatrix[j] + 
                             #beta.covariateS2 * spatialMatrix2[j] +
                             beta.covariateT * temporalMatrix[j,t+1]+
+                            beta.covariateTP * temporalMatrix[j,t]+
                             random.d.obs[j,t+1]
     }}
 
@@ -195,11 +198,22 @@
       }}
 
    #calculate the Bayesian p-value
+    e <- 0.0001
     for(j in 1:n.Lines){
       for(t in 1:n.Years){
-        expNuIndivs.new[j,t] ~ dpois(expNuIndivs[j,t])      
+        chi2[j,t] <- pow((NuIndivs[j,t] - expNuIndivs[j,t]),2) / (sqrt(expNuIndivs[j,t])+e)
+        expNuIndivs.new[j,t] ~ dpois(expNuIndivs[j,t]) 
+        chi2.new[j,t] <- pow((expNuIndivs.new[j,t] - expNuIndivs[j,t]),2) / (sqrt(expNuIndivs[j,t])+e) # exp
       }
     }
+    
+    # Add up discrepancy measures for entire data set
+    for(t in 1:n.Years){
+      fit.t[t] <- sum(chi2[,t])                     
+      fit.new.t[t] <- sum(chi2.new[,t])             
+    }
+    fit <- sum(fit.t[])
+    fit.new <- sum(fit.new.t[])
 
     }
-    
+    ",fill=TRUE,file="combined_model_covariateTS_ar1_lagged.txt")

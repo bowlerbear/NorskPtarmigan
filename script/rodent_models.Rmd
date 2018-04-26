@@ -1,0 +1,96 @@
+---
+title: "combined_model_covariates"
+author: "Diana Bowler"
+date: "14 november 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+#Get Rodent data
+
+```{r results='asis'}
+
+library(ggplot2)
+allData$SettSmagnager<-as.numeric(allData$SettSmagnager)
+
+#get average per fylke
+rodentData <- ddply(allData,.(Year,Fylkesnavn),summarise,
+                    rodents = mean(SettSmagnager,na.rm=T))
+
+#plotting
+qplot(Year,rodents,data=rodentData,geom=c("point","line"))+
+          theme(legend.position = "none")+
+          facet_wrap(~Fylkesnavn)
+
+#by rapport...
+rodentData <- ddply(allData,.(Year,Fylkesnavn,Rapporteringsniva),summarise,
+                    rodents = mean(SettSmagnager,na.rm=T),
+                    totalIndiv=mean(totalIndiv,na.rm=T))
+
+library(boot)
+rodentData$rodents[is.na(rodentData$rodents)]<-0
+rodentData$rodents<- inv.logit(rodentData$rodents)
+
+
+rodentData$Fylkesnavn<-factor(rodentData$Fylkesnavn,levels=FylkeOrder)
+
+#plotting
+qplot(Year,rodents,data=rodentData,geom=c("point","line"),
+      colour=Rapporteringsniva)+
+        theme_bw()+
+        scale_x_continuous(breaks=c(2007,2013,2017),labels=c(2007,2013,2017))+
+          theme(legend.position = "none")+
+          facet_wrap(~Fylkesnavn,ncol=2)
+
+#subset(out,Rapporteringsniva=="Indre Troms")
+#   Fylkesnavn Rapporteringsniva
+#17   Nordland       Indre Troms
+#39      Troms       Indre Troms
+```
+
+
+#Organise the covariate
+
+```{r}
+
+#choose my covariate
+myCovariate =rodentData
+myCovariate<-subset(myCovariate,Year%in%nuIndivs$Year)
+myCovariate$site<-paste(myCovariate$Fylkesnavn,myCovariate$Rapporteringsniva,sep="_")
+covariateMatrix = my.n
+rowNames<-as.character(sapply(row.names(my.n),function(x)strsplit(as.character(x),"#")[[1]][1]))
+
+all(myCovariate$Rapporteringsniva%in%rowNames)
+all(myCovariate$Year%in%dimnames(covariateMatrix)[[2]])
+
+#do we have a value for every combinations
+table(myCovariate$Year)
+
+for(i in 1:nrow(covariateMatrix)){
+  for(j in 1:ncol(covariateMatrix)){
+    covariateMatrix[i,j] = myCovariate$rodents[myCovariate$site==rowNames[i]&
+                                              myCovariate$Year==dimnames(covariateMatrix)[[2]][j]]
+  }
+}
+
+```
+
+Get weather data
+
+```{r}
+
+
+```
+
+Run glms on rodent observation with transect length as an offset
+
+```{r}
+
+
+```
+

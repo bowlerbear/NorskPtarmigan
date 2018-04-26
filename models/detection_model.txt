@@ -20,8 +20,7 @@
 
     for( i in 1:N){
     #linear predictor
-    mu.df[i] <- b.df.0 + b.group.size * detectionGroupSize[i] 
-                        + b.time * Time[i] + random.det.line[detectionLine[i]]
+    mu.df[i] <- b.df.0 + b.group.size * detectionGroupSize[i] + random.det.line[detectionLine[i]]
     
     # estimate of sd and var, given coeffs above
     sig.df[i] <- exp(mu.df[i])

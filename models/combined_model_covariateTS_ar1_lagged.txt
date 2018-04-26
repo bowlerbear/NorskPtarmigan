@@ -152,6 +152,7 @@
     beta.covariateS ~ dnorm(0,0.001)
     #beta.covariateS2 ~ dnorm(0,0.001)
     beta.covariateT ~ dnorm(0,0.001)
+    beta.covariateTP ~ dnorm(0,0.001)
     #beta.covariateA ~ dnorm(0,0.001)
 
     #Observation model:
@@ -172,6 +173,7 @@
                             beta.covariateS * spatialMatrix[j] + 
                             #beta.covariateS2 * spatialMatrix2[j] +
                             beta.covariateT * temporalMatrix[j,t+1]+
+                            beta.covariateTP * temporalMatrix[j,t]+
                             random.d.obs[j,t+1]
     }}
 

@@ -138,27 +138,21 @@
       }
     }
 
-    #overdispersion 
-    obs.d.sd ~ dunif(0,10)
-    obs.d.tau <- pow(obs.d.sd,-2)
-    for(j in 1:n.Lines){
-      for(t in 1:n.Years){
-        random.d.obs[j,t] ~ dnorm(0,obs.d.tau)
-      }
-    }
-
     #slopes
     beta.auto ~ dunif(-2,2)
-    beta.covariateS ~ dnorm(0,0.001)
-    #beta.covariateS2 ~ dnorm(0,0.001)
-    beta.covariateT ~ dnorm(0,0.001)
-    #beta.covariateA ~ dnorm(0,0.001)
+    #covariate 1
+    beta.covariateS_cov1 ~ dnorm(0,0.001)
+    beta.covariateT_cov1 ~ dnorm(0,0.001)
+    #covariate 2
+    beta.covariateS_cov2 ~ dnorm(0,0.001)
+    beta.covariateT_cov2 ~ dnorm(0,0.001)
 
     #Observation model:
     for(j in 1:n.Lines){
       for(t in 1:n.Years){
         NuIndivs[j,t] ~ dpois(expNuIndivs[j,t])
-        expNuIndivs[j,t] <- (Density[j,t] * (TransectLength[j,t]/1000 * predESW[j,t]/1000 * 2))
+        expNuIndivs[j,t] <- (predDensity[j,t] * (TransectLength[j,t]/1000 * predESW[j,t]/1000 * 2))
+        predDensity[j,t] ~ dpois(Density[j,t]) 
       }}
 
     #State model
@@ -169,37 +163,25 @@
         log(Density[j,t+1]) <- int.d + 
                             beta.auto * log(Density[j,t]) +
                             random.d.line[j] + 
-                            beta.covariateS * spatialMatrix[j] + 
-                            #beta.covariateS2 * spatialMatrix2[j] +
-                            beta.covariateT * temporalMatrix[j,t+1]+
-                            random.d.obs[j,t+1]
+                            beta.covariateS_cov1 * spatialMatrix1[j] + 
+                            beta.covariateT_cov1 * temporalMatrix1[j,t+1] +
+                            beta.covariateS_cov2 * spatialMatrix2[j] + 
+                            beta.covariateT_cov2 * temporalMatrix2[j,t+1]
+
     }}
 
     #Priors on the first year of density
     for(j in 1:n.Lines){
-        Density[j,1] ~ dpois(year1[j])
+        Density[j,1] ~ dpois(year1[j]/0.6)
     }
 
-    #get predicted temporal effects
-    for(j in 1:n.Lines){
-      for(t in 1:n.Years){
-        pred.Time[j,t] <- int.d + beta.covariateT * temporalMatrix[j,t]
-      }}
-
-
-    #get predicted spatial effects
-    for(j in 1:n.Lines){
-      for(t in 1:n.Years){
-        #pred.Space[j,t] <- int.d + beta.covariateS * spatialMatrix[j,t]+ beta.covariateS2 * spatialMatrix2[j,t]
-        pred.Space[j,t] <- int.d + beta.covariateS * spatialMatrix[j]
-      }}
-
-   #calculate the Bayesian p-value
+    #calculate the Bayesian p-value
     for(j in 1:n.Lines){
       for(t in 1:n.Years){
         expNuIndivs.new[j,t] ~ dpois(expNuIndivs[j,t])      
       }
     }
+
 
     }
     

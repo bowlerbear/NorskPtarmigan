@@ -52,7 +52,7 @@
                             random.gs.year[detectionYear[i]]+ 
                             random.gs.line[detectionLine[i]]+
                             random.gs.site2[detectionSite[i]]+
-                            random.gs.line.year[detectionLineYear[i]]
+                            random.gs.site2.year[detectionSiteYear[i]]
     
     }
 
@@ -60,11 +60,10 @@
     #times the re by the indices
     for(k in 1:n.allCombos){
       for(i in 1:N){
-        out[i,k]<-random.gs.line.year[detectionLineYear[i]]*TransYrIdx[i,k]
+        out[i,k]<-random.gs.site2.year[detectionSiteYear[i]]*TransYrIdx[i,k]
       }
         out2[k]<-max(out[,k],0)
     }
-
 
     ##then convert them to a t,j matrix
     for(k in 1:n.allCombos){

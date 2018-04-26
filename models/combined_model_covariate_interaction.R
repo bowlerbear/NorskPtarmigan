@@ -148,14 +148,17 @@ cat("
     #covariate 2
     beta.covariateS_cov2 ~ dnorm(0,0.001)
     beta.covariateT_cov2 ~ dnorm(0,0.001)
+    beta.covariateTL_cov2 ~ dnorm(0,0.001)
     #interaction
     beta.covariate_int ~ dnorm(0,0.001)
+    beta.covariate_intL ~ dnorm(0,0.001)
 
     #Observation model:
     for(j in 1:n.Lines){
       for(t in 1:n.Years){
         NuIndivs[j,t] ~ dpois(expNuIndivs[j,t])
-        expNuIndivs[j,t] <- (Density[j,t] * (TransectLength[j,t]/1000 * predESW[j,t]/1000 * 2))
+        expNuIndivs[j,t] <- (predDensity[j,t] * (TransectLength[j,t]/1000 * predESW[j,t]/1000 * 2))
+        predDensity[j,t] ~ dpois(Density[j,t])  
       }}
 
     #State model
@@ -164,21 +167,72 @@ cat("
       
       #linear predictor on density
         log(Density[j,t+1]) <- int.d + 
+
                             beta.auto * log(Density[j,t]) +
-                            random.d.line[j] + 
-                            beta.covariateS_cov1 * spatialMatrix1[j,t+1] + 
+                            random.d.line[j] +
+
+                            beta.covariateS_cov1 * spatialMatrix1[j] + 
                             beta.covariateT_cov1 * temporalMatrix1[j,t+1] +
-                            beta.covariateS_cov2 * spatialMatrix2[j,t+1] + 
+
+                            beta.covariateS_cov2 * spatialMatrix2[j] + 
                             beta.covariateT_cov2 * temporalMatrix2[j,t+1] +
-                            beta.covariate_int * interactionMatrix[j,t+1] + 
-                            random.d.site[site[j]]
+
+                            beta.covariate_int * spatialMatrix1[j] * temporalMatrix2[j,t+1] +
+                            beta.covariate_intL * spatialMatrix1[j] * temporalMatrix2[j,t]
 
     }}
 
     #Priors on the first year of density
     for(j in 1:n.Lines){
-        Density[j,1] ~ dpois(year1[j])
+        Density[j,1] ~ dpois(year1[j]/0.6)
     }
+
+    #calculate the Bayesian p-value
+    e <- 0.0001
+    for(j in 1:n.Lines){
+      for(t in 1:n.Years){
+        chi2[j,t] <- pow((NuIndivs[j,t] - expNuIndivs[j,t]),2) / (sqrt(expNuIndivs[j,t])+e)
+        expNuIndivs.new[j,t] ~ dpois(expNuIndivs[j,t]) 
+        chi2.new[j,t] <- pow((expNuIndivs.new[j,t] - expNuIndivs[j,t]),2) / (sqrt(expNuIndivs[j,t])+e) # exp
+      }
+    }
+    
+    # Add up discrepancy measures for entire data set
+    for(t in 1:n.Years){
+      fit.t[t] <- sum(chi2[,t])                     
+      fit.new.t[t] <- sum(chi2.new[,t])             
+    }
+    fit <- sum(fit.t[])
+    fit.new <- sum(fit.new.t[])
+
+
+    #only rodents
+    for(j in 1:n.Lines){
+      for(t in 1:(n.Years-1)){
+      log(rDensity[j,t+1]) <- int.d + 
+                            beta.auto * log(Density[j,t]) +
+                            random.d.line[j] + 
+                            beta.covariateS_cov2 * spatialMatrix2[j] + 
+                            beta.covariateT_cov2 * temporalMatrix2[j,t+1]
+
+      }}
+
+    #only with climate effect
+    for(j in 1:n.Lines){
+      for(t in 1:(n.Years-1)){
+      log(cDensity[j,t+1]) <- int.d + 
+                            beta.auto * log(Density[j,t]) +
+                            random.d.line[j] + 
+                            beta.covariateS_cov1 * spatialMatrix1[j] + 
+                            beta.covariateT_cov1 * temporalMatrix1[j,t+1]
+
+      }}
+
+    #predicted effects along a climatic gradient
+    for(i in 1:n.Preds){
+      preds[i] <- int.d + beta.covariateT_cov2 + beta.covariate_intL * climaticGradient[i]
+    }
+
 
     }
     ",fill=TRUE,file="combined_model_covariate_interaction.txt")

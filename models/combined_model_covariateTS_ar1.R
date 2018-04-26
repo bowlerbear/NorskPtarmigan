@@ -76,17 +76,13 @@ cat("
     for(i in 1:N){
       GroupSize[i] ~ dpois(expGroupSize[i])
       log(expGroupSize[i]) <- int.gs + random.gs.year[detectionYear[i]] + 
-                                      random.gs.line[detectionLine[i]] +
-                                      long.term.trend * detectionYear[i] +
-                                      detectionYear[i] * random.gs.trend.line[detectionLine[i]]
+                                      random.gs.line[detectionLine[i]] 
     }
 
     #using this model, get predicted group size for each line and year
     for(t in 1:n.Years){
       for(j in 1:n.Lines){
-        log(predGroupSize[j,t]) <- int.gs + random.gs.year[t] + random.gs.line[j] + 
-                                    random.gs.trend.line[j] * t +
-                                    long.term.trend * t
+        log(predGroupSize[j,t]) <- int.gs + random.gs.year[t] + random.gs.line[j] 
       }
     }
 
@@ -144,11 +140,21 @@ cat("
       }
     }
 
+    #overdispersion 
+    obs.d.sd ~ dunif(0,10)
+    obs.d.tau <- pow(obs.d.sd,-2)
+    for(j in 1:n.Lines){
+      for(t in 1:n.Years){
+        random.d.obs[j,t] ~ dnorm(0,obs.d.tau)
+      }
+    }
+
     #slopes
     beta.auto ~ dunif(-2,2)
     beta.covariateS ~ dnorm(0,0.001)
     #beta.covariateS2 ~ dnorm(0,0.001)
     beta.covariateT ~ dnorm(0,0.001)
+    beta.covariateTP ~ dnorm(0,0.001)
     #beta.covariateA ~ dnorm(0,0.001)
 
     #Observation model:
@@ -166,9 +172,11 @@ cat("
         log(Density[j,t+1]) <- int.d + 
                             beta.auto * log(Density[j,t]) +
                             random.d.line[j] + 
-                            beta.covariateS * spatialMatrix[j,t+1] + 
-                            #beta.covariateS2 * spatialMatrix2[j,t+1] +
-                            beta.covariateT * temporalMatrix[j,t+1]
+                            beta.covariateS * spatialMatrix[j] + 
+                            #beta.covariateS2 * spatialMatrix2[j] +
+                            beta.covariateT * temporalMatrix[j,t+1]+
+                            beta.covariateTP * temporalMatrix[j,t]+
+                            random.d.obs[j,t+1]
     }}
 
     #Priors on the first year of density
@@ -187,7 +195,7 @@ cat("
     for(j in 1:n.Lines){
       for(t in 1:n.Years){
         #pred.Space[j,t] <- int.d + beta.covariateS * spatialMatrix[j,t]+ beta.covariateS2 * spatialMatrix2[j,t]
-        pred.Space[j,t] <- int.d + beta.covariateS * spatialMatrix[j,t]
+        pred.Space[j,t] <- int.d + beta.covariateS * spatialMatrix[j]
       }}
 
    #calculate the Bayesian p-value

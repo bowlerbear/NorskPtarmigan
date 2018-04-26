@@ -53,17 +53,17 @@ allDetections$propForest<-lineSummary$propForest[match(allDetections$LinjeID,lin
 #      temp$month <- month(temp$Date)
 #      subset(temp,month%in%c(7,8))#months of data collection
 #})
-setwd("/data/home/diana.bowler/NorskPtarmigan/additional_data_files")
+#setwd("/data/home/diana.bowler/NorskPtarmigan/additional_data_files")
 #save(precipData,file="precipData_surveyperiod.RData")
-load("precipData_surveyperiod.RData")
-allDetections$precip<-as.numeric(precipData$precip[match(interaction(allDetections$LinjeID,allDetections$Date),
-                                                  interaction(precipData$site,precipData$Date))])
-allDetections$precipDay<-ifelse(allDetections$precip>0,1,0)
-table(allDetections$precipDay)
+#load("precipData_surveyperiod.RData")
+#allDetections$precip<-as.numeric(precipData$precip[match(interaction(allDetections$LinjeID,allDetections$Date)
+     #                                             interaction(precipData$site,precipData$Date))])
+#allDetections$precipDay<-ifelse(allDetections$precip>0,1,0)
+#table(allDetections$precipDay)
 
 hist(allDetections$totalIndiv)
-hist(allDetections$precip)
-hist(sqrt(allDetections$precip+1))
+#hist(allDetections$precip)
+#hist(sqrt(allDetections$precip+1))
 hist(allDetections$propForest)
 hist(allDetections$LinjeAvstand)
 
@@ -74,7 +74,7 @@ bugs.data <- list(W = 200,
                   detectionGroupSize = log(allDetections$totalIndiv+1),
                   GroupSize = allDetections$totalIndiv,
                   propForest = allDetections$propForest,
-                  precip = sqrt(allDetections$precip+1),
+                  #precip = sqrt(allDetections$precip+1),
                   zeros.dist = rep(0,nrow(allDetections)),
                   Time = log(allDetections$timeSince+1),
                   detectionLine =as.numeric(factor(allDetections$LinjeID)),
@@ -137,4 +137,61 @@ out1 <- jags(bugs.data, inits=NULL, params, "detection_model.txt", n.thin=nt,
 save(out1,file="out1_detection_precip.RData")
 
 ```
+
+(3) Group size only
+
+```{r}
+
+source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
+
+params <- c("b.df.0","b.group.size","esw","sig.df")
+  
+#inits <- function(){list(b.df.0 = runif(1,2,5), 
+#                         B.gs.0 = runif(1,0.2,3),
+#                         B.n.0 = runif(1,0.5,5))}
+  
+setwd("/data/home/diana.bowler/NorskPtarmigan/models")
+out1 <- jags(bugs.data, inits=NULL, params, "detection_model.txt", n.thin=nt,
+               n.chains=nc, n.burnin=500,n.iter=3000)
+
+
+setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
+save(out1,file="out1_detection.RData")
+```
+
+Plot the detection curve for diferent possible group sizes.
+
+```{r}
+allSigma<-unique(out1$mean$sig.df)
+hist(allSigma)  
+
+#distances
+x <- seq(0, 200, length.out=1000)
+x2 <- x^2
+
+#mean 
+median(bugs.data$detectionGroupSize)
+sigma <- exp(out1$mean$b.df.0 + out1$mean$b.group.size * log(median(bugs.data$detectionGroupSize)+1))
+sigma2<- sigma * sigma
+gx <- exp(-x2/(2*sigma2))
+plot(x, gx, ylim=c(0,1),type="n",ylab="Detection probability",xlab="Distance (m)")
+lines(x, gx)
+
+#lower quartile
+min(bugs.data$detectionGroupSize)
+sigma <- exp(out1$mean$b.df.0 + out1$mean$b.group.size * log(min(bugs.data$detectionGroupSize)+1))
+sigma2<- sigma * sigma
+gx <- exp(-x2/(2*sigma2))
+lines(x, gx, col="dark red",lty=3)
+
+
+#upper quartile
+max(bugs.data$detectionGroupSize)
+sigma <- exp(out1$mean$b.df.0 + out1$mean$b.group.size * log(max(bugs.data$detectionGroupSize)+1))
+sigma2<- sigma * sigma
+gx <- exp(-x2/(2*sigma2))
+lines(x, gx, col="dark red",lty=3)
+
+```
+
 

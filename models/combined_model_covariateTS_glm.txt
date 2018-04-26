@@ -13,7 +13,8 @@
     for( i in 1:N){
     #linear predictor
     mu.df[i] <- b.df.0 + b.group.size * detectionGroupSize[i] 
-    
+    #mu.df[i] <- b.df.0 
+
     # estimate of sd and var, given coeffs above
     sig.df[i] <- exp(mu.df[i])
     sig2.df[i] <- sig.df[i]*sig.df[i]
@@ -33,7 +34,8 @@
     #using this model and predicted group size (below), get predicted ESW for each line and year
     for(t in 1:n.Years){
       for(j in 1:n.Lines){
-        pred.sig[j,t] <- exp(b.df.0+ b.group.size * log(predGroupSize[j,t]+1)) 
+        pred.sig[j,t] <- exp(b.df.0+ b.group.size * log(predGroupSize[j,t]+1))
+        #pred.sig[j,t] <- exp(b.df.0)
         pred.sig2[j,t] <- pow(pred.sig[j,t],2)
         predESW[j,t] <- sqrt(pi * pred.sig2[j,t] / 2)
       }
@@ -80,7 +82,7 @@
     #using this model, get predicted group size for each line and year
     for(t in 1:n.Years){
       for(j in 1:n.Lines){
-        log(predGroupSize[j,t]) <- int.gs + random.gs.year[t] + random.gs.line[j] 
+        log(predGroupSize[j,t]) <- int.gs + random.gs.year[t] + random.gs.line[j]
       }
     }
 
@@ -95,7 +97,7 @@
     line.d.sd ~ dunif(0,10)
     line.d.tau <- pow(line.d.sd,-2)
     for(j in 1:n.Lines){
-    random.d.line[j] ~ dnorm(0,line.d.tau)
+      random.d.line[j] ~ dnorm(0,line.d.tau)
     }
     
     #random site effect
@@ -110,14 +112,13 @@
     site2.d.tau <- pow(site2.d.sd,-2)
     for(j in 1:n.Sites2){
       random.d.site2[j] ~ dnorm(0,site2.d.tau)
-
     }
     
     #random time effect
     year.d.sd ~ dunif(0,10)
     year.d.tau <- pow(year.d.sd,-2)
     for(t in 1:n.Years){
-    random.d.year[t] ~ dnorm(0,year.d.tau)
+      random.d.year[t] ~ dnorm(0,year.d.tau)
     }
 
     #random site and time effect
@@ -138,7 +139,7 @@
       }
     }
 
-    #overdispersion 
+  #overdispersion
     obs.d.sd ~ dunif(0,10)
     obs.d.tau <- pow(obs.d.sd,-2)
     for(j in 1:n.Lines){
@@ -146,53 +147,32 @@
         random.d.obs[j,t] ~ dnorm(0,obs.d.tau)
       }
     }
+    
 
     #slopes
     beta.auto ~ dunif(-2,2)
     beta.covariateS ~ dnorm(0,0.001)
     #beta.covariateS2 ~ dnorm(0,0.001)
     beta.covariateT ~ dnorm(0,0.001)
-    #beta.covariateA ~ dnorm(0,0.001)
 
     #Observation model:
     for(j in 1:n.Lines){
       for(t in 1:n.Years){
         NuIndivs[j,t] ~ dpois(expNuIndivs[j,t])
-        expNuIndivs[j,t] <- (Density[j,t] * (TransectLength[j,t]/1000 * predESW[j,t]/1000 * 2))
-      }}
 
     #State model
-    for(j in 1:n.Lines){
-      for(t in 1:(n.Years-1)){
-      
       #linear predictor on density
-        log(Density[j,t+1]) <- int.d + 
-                            beta.auto * log(Density[j,t]) +
+        log(expNuIndivs[j,t]) <- int.d + 
                             random.d.line[j] + 
                             beta.covariateS * spatialMatrix[j] + 
-                            #beta.covariateS2 * spatialMatrix2[j] +
-                            beta.covariateT * temporalMatrix[j,t+1]+
-                            random.d.obs[j,t+1]
-    }}
-
-    #Priors on the first year of density
-    for(j in 1:n.Lines){
-        Density[j,1] ~ dpois(year1[j])
+                            beta.covariateT * temporalMatrix[j,t] +
+                            random.d.site[site[j]]+
+                            random.d.obs[j,t]+
+                            log(TransectLength[j,t])
+                            
+      }
     }
 
-    #get predicted temporal effects
-    for(j in 1:n.Lines){
-      for(t in 1:n.Years){
-        pred.Time[j,t] <- int.d + beta.covariateT * temporalMatrix[j,t]
-      }}
-
-
-    #get predicted spatial effects
-    for(j in 1:n.Lines){
-      for(t in 1:n.Years){
-        #pred.Space[j,t] <- int.d + beta.covariateS * spatialMatrix[j,t]+ beta.covariateS2 * spatialMatrix2[j,t]
-        pred.Space[j,t] <- int.d + beta.covariateS * spatialMatrix[j]
-      }}
 
    #calculate the Bayesian p-value
     for(j in 1:n.Lines){

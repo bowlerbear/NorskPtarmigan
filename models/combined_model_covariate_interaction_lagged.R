@@ -1,4 +1,5 @@
-
+#distance model
+cat("
     model{
 
     #################
@@ -138,27 +139,25 @@
       }
     }
 
-    #overdispersion 
-    obs.d.sd ~ dunif(0,10)
-    obs.d.tau <- pow(obs.d.sd,-2)
-    for(j in 1:n.Lines){
-      for(t in 1:n.Years){
-        random.d.obs[j,t] ~ dnorm(0,obs.d.tau)
-      }
-    }
-
     #slopes
     beta.auto ~ dunif(-2,2)
-    beta.covariateS ~ dnorm(0,0.001)
-    #beta.covariateS2 ~ dnorm(0,0.001)
-    beta.covariateT ~ dnorm(0,0.001)
-    #beta.covariateA ~ dnorm(0,0.001)
+    #covariate 1
+    beta.covariateS_cov1 ~ dnorm(0,0.001)
+    beta.covariateT_cov1 ~ dnorm(0,0.001)
+    #covariate 2
+    beta.covariateS_cov2 ~ dnorm(0,0.001)
+    beta.covariateT_cov2 ~ dnorm(0,0.001)
+    beta.covariateTL_cov2 ~ dnorm(0,0.001)
+    #interaction
+    beta.covariate_int ~ dnorm(0,0.001)
+    beta.covariate_intL ~ dnorm(0,0.001)
 
     #Observation model:
     for(j in 1:n.Lines){
       for(t in 1:n.Years){
         NuIndivs[j,t] ~ dpois(expNuIndivs[j,t])
-        expNuIndivs[j,t] <- (Density[j,t] * (TransectLength[j,t]/1000 * predESW[j,t]/1000 * 2))
+        expNuIndivs[j,t] <- (predDensity[j,t] * (TransectLength[j,t]/1000 * predESW[j,t]/1000 * 2))
+        predDensity[j,t] ~ dpois(Density[j,t])  
       }}
 
     #State model
@@ -169,37 +168,112 @@
         log(Density[j,t+1]) <- int.d + 
                             beta.auto * log(Density[j,t]) +
                             random.d.line[j] + 
-                            beta.covariateS * spatialMatrix[j] + 
-                            #beta.covariateS2 * spatialMatrix2[j] +
-                            beta.covariateT * temporalMatrix[j,t+1]+
-                            random.d.obs[j,t+1]
+                            beta.covariateS_cov1 * spatialMatrix1[j] + 
+                            beta.covariateT_cov1 * temporalMatrix1[j,t+1] +
+                            beta.covariateS_cov2 * spatialMatrix2[j] + 
+                            beta.covariateT_cov2 * temporalMatrix2[j,t+1] +
+                            beta.covariateTL_cov2 * temporalMatrix2[j,t] +
+                            beta.covariate_int * spatialMatrix1[j] * temporalMatrix2[j,t+1] +
+                            beta.covariate_intL * spatialMatrix1[j] * temporalMatrix2[j,t]
+
     }}
 
     #Priors on the first year of density
     for(j in 1:n.Lines){
-        Density[j,1] ~ dpois(year1[j])
+        Density[j,1] ~ dpois(year1[j]/0.6)
     }
 
-    #get predicted temporal effects
-    for(j in 1:n.Lines){
-      for(t in 1:n.Years){
-        pred.Time[j,t] <- int.d + beta.covariateT * temporalMatrix[j,t]
-      }}
+    #model for missing data for rodent data
+    int.rs ~ dnorm(0,0.001)
+    int.rt ~ dnorm(0,0.001)
+    tau.rs <- pow(sd.rs,-2)
+    sd.rs ~ dunif(0,10)
+    tau.rt <- pow(sd.rt,-2)
+    sd.rt ~ dunif(0,10)
 
-
-    #get predicted spatial effects
     for(j in 1:n.Lines){
+          spatialMatrix2[j] ~ dnorm(spatialMatrix2.pred[j],tau.rs)
+          spatialMatrix2.pred[j] <- int.rs +  random.r.site[site[j]]
       for(t in 1:n.Years){
-        #pred.Space[j,t] <- int.d + beta.covariateS * spatialMatrix[j,t]+ beta.covariateS2 * spatialMatrix2[j,t]
-        pred.Space[j,t] <- int.d + beta.covariateS * spatialMatrix[j]
-      }}
-
-   #calculate the Bayesian p-value
-    for(j in 1:n.Lines){
-      for(t in 1:n.Years){
-        expNuIndivs.new[j,t] ~ dpois(expNuIndivs[j,t])      
+          temporalMatrix2[j,t] ~ dnorm(temporalMatrix2.pred[j,t],tau.rt)
+          temporalMatrix2.pred[j,t] <- int.rt + random.r.year[t] + random.r.syear[site[j],t]
       }
     }
 
+    #random site and time effect
+    syear.r.sd ~ dunif(0,10)
+    syear.r.tau <- pow(syear.r.sd,-2)
+    for(j in 1:n.Sites){
+      for(t in 1:n.Years){
+        random.r.syear[j,t] ~ dnorm(0,syear.r.tau)
+      }
+    }
+
+    #random site effect
+    site.r.sd ~ dunif(0,10)
+    site.r.tau <- pow(site.r.sd,-2)
+    for(j in 1:n.Sites){
+      random.r.site[j] ~ dnorm(0,site.r.tau)
+    }
+
+    #random time effect
+    year.r.sd ~ dunif(0,10)
+    year.r.tau <- pow(year.r.sd,-2)
+    for(t in 1:n.Years){
+      random.r.year[t] ~ dnorm(0,year.r.tau)
+    }
+
+    #calculate the Bayesian p-value
+    e <- 0.0001
+    for(j in 1:n.Lines){
+      for(t in 1:n.Years){
+        chi2[j,t] <- pow((NuIndivs[j,t] - expNuIndivs[j,t]),2) / (sqrt(expNuIndivs[j,t])+e)
+        expNuIndivs.new[j,t] ~ dpois(expNuIndivs[j,t]) 
+        chi2.new[j,t] <- pow((expNuIndivs.new[j,t] - expNuIndivs[j,t]),2) / (sqrt(expNuIndivs[j,t])+e) # exp
+      }
     }
     
+    # Add up discrepancy measures for entire data set
+    for(t in 1:n.Years){
+      fit.t[t] <- sum(chi2[,t])                     
+      fit.new.t[t] <- sum(chi2.new[,t])             
+    }
+    fit <- sum(fit.t[])
+    fit.new <- sum(fit.new.t[])
+
+    #only rodents
+    for(j in 1:n.Lines){
+      for(t in 1:(n.Years-1)){
+      log(rDensity[j,t+1]) <- int.d + 
+                            beta.auto * log(Density[j,t]) +
+                            random.d.line[j] + 
+                            beta.covariateS_cov2 * spatialMatrix2[j] + 
+                            beta.covariateT_cov2 * temporalMatrix2[j,t+1]+
+                            beta.covariateTL_cov2 * temporalMatrix2[j,t]
+
+      }}
+
+    #only with climate effect
+    for(j in 1:n.Lines){
+      for(t in 1:(n.Years-1)){
+      log(cDensity[j,t+1]) <- int.d + 
+                            beta.auto * log(Density[j,t]) +
+                            random.d.line[j] + 
+                            beta.covariateS_cov1 * spatialMatrix1[j] + 
+                            beta.covariateT_cov1 * temporalMatrix1[j,t+1]
+
+      }}
+
+    
+    #prediction of how direct effect of rodents changes with gradient
+    for(i in 1:n.Preds){
+      preds[i] <- beta.covariateT_cov2 + beta.covariate_int* climaticGradient[i]
+    }
+
+    #predictions of how lagged effects of rodents changes with gradient
+    for(i in 1:n.Preds){
+      predsL[i] <- beta.covariateTL_cov2 + beta.covariate_intL* climaticGradient[i]
+    }
+
+    }
+    ",fill=TRUE,file="combined_model_covariate_interaction_lagged.txt")
