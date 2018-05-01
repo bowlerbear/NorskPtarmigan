@@ -16,11 +16,7 @@ Import the data - check the subsetting is as wanted
 ```{r}
 library(knitr)
 #knit("ptarmigan_formatting.Rmd")
-<<<<<<< HEAD
 load("/data/home/diana.bowler/NorskPtarmigan/allData.RData")
-=======
-load("allData.RData")
->>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 head(allData)
 
 ```
@@ -42,11 +38,9 @@ library(plyr); library(dplyr)
 library(ggplot2)
 
 #subset
-<<<<<<< HEAD
+
 allData<-subset(allData,Year>2006)
-=======
 allData<-subset(allData,Year>2006 & Year<2017)
->>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 
 #remove hyphens for help with subsetting
 allData$Fylkesnavn<-gsub("-"," ",allData$Fylkesnavn)
@@ -55,13 +49,11 @@ allData$Rapporteringsniva<-gsub("-"," ",allData$Rapporteringsniva)
 #change kommune name for Dovre Fjellstyre
 allData$Kommunenavn[which(allData$Kommunenavn=="Dovre Fjellstyrene")]<-"Dovre"
 
-<<<<<<< HEAD
 #Nordland__Indre Troms             
 #Troms__Indre Troms 
 allData$Fylkesnavn[which(allData$Rapporteringsniva=="Indre Troms")]<-"Troms"
 
-=======
->>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
+
 #get number of individuals per line
 nuIndivs <-
   allData%>%
@@ -70,10 +62,7 @@ nuIndivs <-
             nuJuvs = sum(AntallKylling),
             nuTotal = sum(totalIndiv),
             maxTransectLength=max(LengdeTaksert,na.rm=T))
-<<<<<<< HEAD
-=======
 
->>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 nuIndivs$iYear <- nuIndivs$Year - min(nuIndivs$Year) + 1
 summary(nuIndivs)
 
@@ -85,11 +74,11 @@ nuIndivs$Line<-paste(nuIndivs$Line,nuIndivs$LinjeID,sep="-")
 my.n <- acast(nuIndivs,Line~Year,value.var="nuTotal")
 
 #check all have at least one positive and non-zero value
-<<<<<<< HEAD
+
 summary(as.numeric(apply(my.n,1,max,na.rm=T)))#yes!!
-=======
+
 summary(as.numeric(apply(my.n,1,max,na.rm=T)))
->>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
+
 
 #get transect length data
 allData$Line<-paste(allData$Fylkesnavn,allData$Rapporteringsniva,sep="_")
@@ -98,12 +87,12 @@ allData$Line<-paste(allData$Line,allData$LinjeID,sep="-")
 transectLengths <- acast(allData,Line~Year,value.var="LengdeTaksert",fun=max,na.rm=T)
 transectLengths[is.na(my.n)]<-0
 #there are some -1 transect lengths
-<<<<<<< HEAD
+save(transectLengths,file="transectLengths.RData")
+
 #transectLengths[transectLengths==-1]<-0
 #Finnmark_Indre Finnmark-882/3
 my.n[transectLengths==0]<-NA
 
-=======
 transectLengths[transectLengths==-1]<-0
 #Finnmark_Indre Finnmark-882/3
 my.n[transectLengths==0]<-NA
@@ -111,7 +100,6 @@ my.n[transectLengths==0]<-NA
 #Nordland__Indre Troms             
 #Troms__Indre Troms 
 
->>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 #order site info
 siteInfo<-data.frame(Line=row.names(my.n))
 siteInfo$Fylkesnavn<-as.numeric(factor(sapply(siteInfo$Line,function(x)strsplit(as.character(x),"_")[[1]][1])))
@@ -120,11 +108,8 @@ siteInfo$LinjeID<-as.numeric(factor(siteInfo$Line))
 siteInfo$originalLinjeID<-sapply(siteInfo$Line,function(x)strsplit(as.character(x),"#")[[1]][2])
 siteInfo$originalLinjeID<-sapply(siteInfo$originalLinjeID,function(x)strsplit(as.character(x),"-")[[1]][2])
 siteInfo$Kommunenavn<-nuIndivs$Kommunenavn[match(siteInfo$originalLinjeID,nuIndivs$LinjeID)]
+save(siteInfo,file="siteInfo.RData")
 
-<<<<<<< HEAD
-=======
-
->>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 #Create a data frame with only detection
 allDetections<-subset(allData,totalIndiv>0&!is.na(totalIndiv))
 #get indices of sites
@@ -147,11 +132,8 @@ bugs.data <- list(#For the state model
                   site2 = siteInfo$Rapporteringsniva, 
                   year = (1:length(unique(nuIndivs$Year))),
                   NuIndivs = my.n,
-<<<<<<< HEAD
                   TransectLength = transectLengths,#check again
-=======
                   TransectLength = transectLengths,
->>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
                   #For the distance model
                   W = 200,
                   N = nrow(allDetections),
@@ -161,7 +143,6 @@ bugs.data <- list(#For the state model
                   zeros.dist = rep(0,nrow(allDetections)),
                   detectionLine = allDetections$LinjeID,
                   detectionYear = as.numeric(as.factor(allDetections$Year)),
-<<<<<<< HEAD
                   detectionSite = allDetections$Rapporteringsniva,
                   detectionSiteYear = allDetections$detectionSiteYear)
 
@@ -173,12 +154,8 @@ tl$diff<-tl$maxtl-tl$mintl
 tl<-tl[order(tl$diff,decreasing=T),]
 
 #add lengths
-=======
-                  detectionSite = allDetections$Rapporteringsniva)
-
 bugs.data$detectionLineYear<-allDetections$detectionLineYear
 bugs.data$detectionSiteYear<-allDetections$detectionSiteYear
->>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 bugs.data$n.LineYear<-length(unique(bugs.data$detectionLineYear))
 bugs.data$n.SiteYear<-length(unique(bugs.data$detectionSiteYear))
 
@@ -188,20 +165,12 @@ bugs.data$year1[bugs.data$year1==0]<-1
 
 names(bugs.data)
 
-<<<<<<< HEAD
 #specify Fylke in order of latitude
 FylkeOrder<-c("Finnmark","Troms","Nordland","Nord Trøndelag","Sør Trøndelag","Hedmark",
               "Oppland","Buskerud","Hordaland","Vest Agder")
 
 ```
 
-Example model checking
-=======
-```
-
-
-More model checking
->>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 
 ```{r}
 
@@ -223,7 +192,7 @@ ggmcmc(bayes.mod.fit.gg, file = "~/Documents/Uni/Teaching/CPH-Bayes/Tutorials/JA
 
 #sample the relationships (intercept and slopes) from the pdd and plot them
 
-<<<<<<< HEAD
+
 ```
 
 #multiply the effect size by exposure
@@ -236,6 +205,3 @@ ggmcmc(bayes.mod.fit.gg, file = "~/Documents/Uni/Teaching/CPH-Bayes/Tutorials/JA
 ```
 
 
-=======
-```
->>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
