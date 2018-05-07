@@ -222,101 +222,10 @@ bugs.data$spatialMatrix2<-bugs.data$spatialMatrix2-median(bugs.data$spatialMatri
 
 ```
 
-Fit glm
-
-```{r}
-
-source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
-
-params <- c("int.d","obs.d.sd","line.d.sd","site.d.sd","site2.d.sd",
-            "b.df.0","b.group.size",
-            "beta.covariateS","beta.covariateT")
-
-setwd("/data/home/diana.bowler/NorskPtarmigan/models")
-out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS_glm.txt", n.thin=nt,
-               n.chains=3, n.burnin=1000,n.iter=5000,parallel = T)
-print(out1,2)
-setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
-save(out1,file="out1_springTemp_glm.RData")
-#negative effects spatially
-#positive effects temporally
-
-```
-
-Fit glm scaled
-
-```{r}
-
-bugs.data$spatialMatrix<-bugs.data$spatialMatrix/sd(bugs.data$spatialMatrix)
-bugs.data$temporalMatrix<-bugs.data$temporalMatrix/sd(bugs.data$temporalMatrix)
-
-source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
-
-params <- c("int.d","obs.d.sd","line.d.sd","site.d.sd",
-            "b.df.0","b.group.size",
-            "beta.covariateS","beta.covariateT")
-
-setwd("/data/home/diana.bowler/NorskPtarmigan/models")
-out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS_glm.txt", n.thin=nt,
-               n.chains=3, n.burnin=500,n.iter=2000,parallel = T)
-print(out1,2)
-setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
-save(out1,file="out1_springTemp_glm_scaled.RData")
-#negative effects spatially
-#positive effects temporally
-
-```
-
-Fit a basic model against abundance
-
-```{r}
-
-source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
-
-params <- c("int.d","obs.d.sd","line.d.sd","b.df.0","b.group.size",
-            "beta.covariateS","beta.covariateT","predESW")
-
-setwd("/data/home/diana.bowler/NorskPtarmigan/models")
-out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS.txt", n.thin=nt,
-               n.chains=3, n.burnin=1000,n.iter=5000,parallel = T)
-
-print(out1,2)
-save(out1,file="out1_springTemp_basic.RData")
-#negative effects spatially
-#positive effects temporally
-
-```
-
-Fit a model with ar1 term and random effects
-
-```{r}
-source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
-
-#year one priors
-bugs.data$year1<-as.numeric(apply(my.n,1,function(x)ifelse(!is.na(x[1]),x[1],max(x,na.rm=T))))
-bugs.data$year1[bugs.data$year1==0]<-1
-#bugs.data$TransectLength[bugs.data$TransectLength[,1]==0]<-1
-
-params <- c("int.d","beta.auto",
-            "beta.covariateS","beta.covariateT",
-            "obs.d.sd","site.d.sd","line.d.sd","site2.d.sd",
-            "b.df.0","b.group.size")
-
-setwd("/data/home/diana.bowler/NorskPtarmigan/models")
-out1 <- jags(bugs.data, inits=NULL, params, "combined_model_covariateTS_ar1_re.txt", n.thin=nt,
-               n.chains=3, n.burnin=2000,n.iter=7000,parallel = T)
-
-print(out1,2)
-setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
-save(out1,file="out1_springTemp_re.RData")
-#positive effects, spatially and temporally..
-
-```
 
 #interative weather effects
 
 original units
-
 
 ```{r}
 source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
@@ -420,7 +329,9 @@ mean(simslistDF$fit.new>simslistDF$fit)
 
 ```
 
-#effects of weather and rodents
+#including effects of weather and rodents
+
+
 #specify climate as covariate 1
 
 ```{r}
@@ -464,6 +375,7 @@ hist(as.numeric(bugs.data$temporalMatrix2))
 ```
 
 Relationships between the climatic gradient and variability in the response
+
 ```{r, results='asis'}
 
 g1<-qplot(bugs.data$spatialMatrix1,apply(bugs.data$temporalMatrix1,1,sd))+
@@ -496,6 +408,7 @@ ggsave("springTemp_SD.png",width=8,height=4)
 
 
 weather interaction effects -additive effects of rodents
+
 ```{r}
 source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
 
