@@ -81,6 +81,8 @@ summary(as.numeric(apply(my.n,1,max,na.rm=T)))
 
 
 #get transect length data
+#mistake with 1405 - transect length
+allData$LengdeTaksert[which(allData$LinjeID==1405&allData$LengdeTaksert==1100)]<-11000
 allData$Line<-paste(allData$Fylkesnavn,allData$Rapporteringsniva,sep="_")
 allData$Line<-paste(allData$Line,allData$OmradeID,sep="#")
 allData$Line<-paste(allData$Line,allData$LinjeID,sep="-")
@@ -146,7 +148,6 @@ bugs.data <- list(#For the state model
                   detectionSite = allDetections$Rapporteringsniva,
                   detectionSiteYear = allDetections$detectionSiteYear)
 
-#mistake with 1405 - transect length
 #highlight all those line with different transect lengths
 tl<-ddply(allData,.(LinjeID),summarise,nu=length(unique(LengdeTaksert)),maxtl=max(LengdeTaksert,na.rm=T),mintl=min(LengdeTaksert,na.rm=T))
 tl<-subset(tl,nu>1)
