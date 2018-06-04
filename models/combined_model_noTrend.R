@@ -73,8 +73,10 @@ cat("
     #random line/year effect
     line.year.sd ~ dunif(0,10)
     line.year.tau <- pow( line.year.sd,-2)
-    for(t in 1:n.LineYear){
-      random.gs.line.year[t] ~ dnorm(0, line.year.tau)
+    for(j in 1:n.Lines){
+        for(t in 1:n.Years){
+          random.gs.line.year[j,t] ~ dnorm(0, line.year.tau)
+        }
     }
 
 
@@ -82,17 +84,13 @@ cat("
     #for each detection, model group size
     for(i in 1:N){
       GroupSize[i] ~ dpois(expGroupSize[i])
-      log(expGroupSize[i]) <- int.gs + random.gs.year[detectionYear[i]] + 
-                              random.gs.line[detectionLine[i]]+
-                              random.gs.site2[detectionSite[i]]+
-                              random.gs.line.year[detectionLineYear[i]]
-                              
+      log(expGroupSize[i]) <- int.gs + random.gs.line[detectionLine[i]]+random.gs.line.year[detectionLine[i],detectionYear[i]]
     }
 
     #using this model, get predicted group size for each line and year
     for(t in 1:n.Years){
       for(j in 1:n.Lines){
-        log(predGroupSize[j,t]) <- int.gs + random.gs.year[t] + random.gs.line[j] 
+        log(predGroupSize[j,t]) <- int.gs + random.gs.line[j] +random.gs.line.year[j,t]
       }
     }
 
@@ -154,21 +152,21 @@ cat("
       for(t in 1:n.Years){
         
         NuIndivs[j,t] ~ dpois(expNuIndivs[j,t])
-        expNuIndivs[j,t] <- (Density[j,t] * (TransectLength[j,t]/1000 * predESW[j,t]/1000 * 2))
+        expNuIndivs[j,t] <- (predDensity[j,t] * (TransectLength[j,t]/1000 * predESW[j,t]/1000 * 2))
+        predDensity[j,t] ~ dpois(Density[j,t]) 
 
         #linear predictor on density
-        log(Density[j,t]) <- int.d + random.d.line[j] + random.d.year[t] + 
-                            random.d.site[site[j]] + random.d.syear[site[j],t] +
-                            random.d.site2[site2[j]] + random.d.s2year[site2[j],t]
+        log(Density[j,t]) <- int.d + 
+                            random.d.line[j] + 
+                            random.d.year[t] + 
+                            random.d.site[site[j]] + 
+                            random.d.syear[site[j],t] +
+                            random.d.s2year[site2[j],t] +
+                            random.d.site2[site2[j]] + 
+                            random.d.s2year[site2[j],t]
       }
     } 
 
-    for(t in 1:n.Years){    
-      #FinnmarkNumbers[t]<-mean(Density[1:294,t])    
-      #TromsNumbers[t]<-mean(Density[295:360,t]) 
-      totNumbers[t] <- sum(Density[,t])
-      meanNumbers[t] <- mean(Density[,t])
-    }
       
     }
     ",fill=TRUE,file="combined_model_noTrend.txt")

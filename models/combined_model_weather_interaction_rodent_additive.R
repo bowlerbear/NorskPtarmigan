@@ -61,27 +61,26 @@ cat("
     random.gs.year[t] ~ dnorm(0,year.tau)
     }
 
-    #long-term trend with random site effects
-    long.term.trend ~ dnorm(0,0.001)
-    trend.line.sd ~ dunif(0,10)
-    trend.line.tau <- pow(trend.line.sd,-2)
+    #random line/year effect
+    line.year.sd ~ dunif(0,10)
+    line.year.tau <- pow( line.year.sd,-2)
     for(j in 1:n.Lines){
-      random.gs.trend.line[j] ~ dnorm(0,trend.line.tau)
+        for(t in 1:n.Years){
+          random.gs.line.year[j,t] ~ dnorm(0, line.year.tau)
+        }
     }
-
 
     #Model
     #for each detection, model group size
     for(i in 1:N){
       GroupSize[i] ~ dpois(expGroupSize[i])
-      log(expGroupSize[i]) <- int.gs + random.gs.year[detectionYear[i]] + 
-                                      random.gs.line[detectionLine[i]] 
+      log(expGroupSize[i]) <- int.gs + random.gs.line[detectionLine[i]] + random.gs.line.year[detectionLine[i],detectionYear[i]]
     }
 
     #using this model, get predicted group size for each line and year
     for(t in 1:n.Years){
       for(j in 1:n.Lines){
-        log(predGroupSize[j,t]) <- int.gs + random.gs.year[t] + random.gs.line[j] 
+        log(predGroupSize[j,t]) <- int.gs + random.gs.line[j] +random.gs.line.year[j,t]
       }
     }
 
@@ -117,7 +116,7 @@ cat("
     #random time effect
     year.d.sd ~ dunif(0,10)
     year.d.tau <- pow(year.d.sd,-2)
-    for(t in 1:n.Years){
+    for(t in 1:(n.Years-1)){
     random.d.year[t] ~ dnorm(0,year.d.tau)
     }
 
@@ -142,6 +141,7 @@ cat("
     #slopes
     beta.auto ~ dunif(-2,2)
     beta.covariateS ~ dnorm(0,0.001)
+    beta.covariateS2 ~ dnorm(0,0.001)    
     beta.covariateT ~ dnorm(0,0.001)
     beta.covariate_rodT ~ dnorm(0,0.001)
     beta.covariate_rodTL ~ dnorm(0,0.001)
@@ -152,31 +152,32 @@ cat("
     for(j in 1:n.Lines){
       for(t in 1:n.Years){
         NuIndivs[j,t] ~ dpois(expNuIndivs[j,t])
-        expNuIndivs[j,t] <- (predDensity[j,t] * (TransectLength[j,t]/1000 * predESW[j,t]/1000 * 2))
+        expNuIndivs[j,t] <- predDensity[j,t] * (TransectLength[j,t]/1000 * predESW[j,t]/1000 * 2)
         predDensity[j,t] ~ dpois(Density[j,t])  
-      }}
+      }
+    }
 
     #State model
     for(j in 1:n.Lines){
       for(t in 1:(n.Years-1)){
       
     #linear predictor on density
-        log(Density[j,t+1]) <- int.d + 
-                            beta.auto * log(Density[j,t]) +
-                            random.d.line[j] + 
-                            beta.covariateS * spatialMatrix1[j] + 
-                            beta.covariateT * temporalMatrix1[j,t+1] +
-                            beta.covariate_rodT * temporalMatrix2[j,t+1] +
-                            beta.covariate_rodTL * temporalMatrix2[j,t] +
-                            beta.covariate_int * spatialMatrix1[j] * temporalMatrix1[j,t+1] 
-
+        log(Density[j,t+1]) <- int.d +
+                            log(Density[j,t]) +
+                            beta.auto * log(Density[j,t]) 
+                            #random.d.line[j] + 
+                            #random.d.site2 [site2[j]]  
+                            #beta.covariateS * spatialMatrix1[j] + 
+                            #beta.covariateS2 * spatialMatrix1_2[j] + 
+                            #beta.covariateT * temporalMatrix1[j,t+1] +
+                            #beta.covariate_rodT * temporalMatrix2[j,t+1] +
+                            #beta.covariate_rodTL * temporalMatrix2[j,t] +
+                            #beta.covariate_int * spatialMatrix1[j] * temporalMatrix1[j,t+1] 
       }}
-
-    
 
     #Priors on the first year of density
     for(j in 1:n.Lines){
-        Density[j,1] ~ dpois(year1[j]/0.6)
+        Density[j,1] ~ dpois(priorDensity1[j])
     }
 
     #model for missing data for rodent data
@@ -221,28 +222,27 @@ cat("
 
 
     #calculate the Bayesian p-value
-    e <- 0.0001
-    for(j in 1:n.Lines){
-      for(t in 1:n.Years){
-        chi2[j,t] <- pow((NuIndivs[j,t] - expNuIndivs[j,t]),2) / (sqrt(expNuIndivs[j,t])+e)
-        expNuIndivs.new[j,t] ~ dpois(expNuIndivs[j,t]) 
-        chi2.new[j,t] <- pow((expNuIndivs.new[j,t] - expNuIndivs[j,t]),2) / (sqrt(expNuIndivs[j,t])+e) # exp
-      }
-    }
+    #e <- 0.0001
+    #for(j in 1:n.Lines){
+    #  for(t in 1:n.Years){
+    #    chi2[j,t] <- pow((NuIndivs[j,t] - expNuIndivs[j,t]),2) / (sqrt(expNuIndivs[j,t])+e)
+    #    expNuIndivs.new[j,t] ~ dpois(expNuIndivs[j,t]) 
+    #    chi2.new[j,t] <- pow((expNuIndivs.new[j,t] - expNuIndivs[j,t]),2) / (sqrt(expNuIndivs[j,t])+e) # exp
+    #  }
+    #}
     
     # Add up discrepancy measures for entire data set
-    for(t in 1:n.Years){
-      fit.t[t] <- sum(chi2[,t])                     
-      fit.new.t[t] <- sum(chi2.new[,t])             
-    }
-    fit <- sum(fit.t)
-    fit.new <- sum(fit.new.t)
+    #for(t in 1:n.Years){
+    #  fit.t[t] <- sum(chi2[,t])                     
+    #  fit.new.t[t] <- sum(chi2.new[,t])             
+    #}
+    #fit <- sum(fit.t)
+    #fit.new <- sum(fit.new.t)
 
     #predicted effects along a climatic gradient
-    for(i in 1:n.Preds){
-      preds[i] <- beta.covariateT + beta.covariate_int* climaticGradient[i]
-    }
-
+    #for(i in 1:n.Preds){
+    #  preds[i] <- beta.covariateT + beta.covariate_int* climaticGradient[i]
+    #}
 
     }
     ",fill=TRUE,file="combined_model_weather_interaction_rodent_additive.txt")

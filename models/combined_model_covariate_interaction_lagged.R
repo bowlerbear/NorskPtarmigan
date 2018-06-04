@@ -117,7 +117,7 @@ cat("
     #random time effect
     year.d.sd ~ dunif(0,10)
     year.d.tau <- pow(year.d.sd,-2)
-    for(t in 1:n.Years){
+    for(t in 1:(n.Years-1)){
     random.d.year[t] ~ dnorm(0,year.d.tau)
     }
 
@@ -143,6 +143,7 @@ cat("
     beta.auto ~ dunif(-2,2)
     #covariate 1
     beta.covariateS_cov1 ~ dnorm(0,0.001)
+    beta.covariateS2_cov1 ~ dnorm(0,0.001)
     beta.covariateT_cov1 ~ dnorm(0,0.001)
     #covariate 2
     beta.covariateS_cov2 ~ dnorm(0,0.001)
@@ -168,15 +169,18 @@ cat("
         log(Density[j,t+1]) <- int.d + 
                             beta.auto * log(Density[j,t]) +
                             random.d.line[j] + 
+                            random.d.site2[site2[j]] +
+                            #random.d.year[t] +
                             beta.covariateS_cov1 * spatialMatrix1[j] + 
+                            beta.covariateS2_cov1 * spatialMatrix1_2[j] + 
                             beta.covariateT_cov1 * temporalMatrix1[j,t+1] +
-                            beta.covariateS_cov2 * spatialMatrix2[j] + 
                             beta.covariateT_cov2 * temporalMatrix2[j,t+1] +
                             beta.covariateTL_cov2 * temporalMatrix2[j,t] +
                             beta.covariate_int * spatialMatrix1[j] * temporalMatrix2[j,t+1] +
                             beta.covariate_intL * spatialMatrix1[j] * temporalMatrix2[j,t]
 
-    }}
+      }}
+
 
     #Priors on the first year of density
     for(j in 1:n.Lines){

@@ -42,6 +42,10 @@ cat("
     
 
     #fit model
+    beta.t ~ dnorm(0, 0.001)
+    beta.s ~ dnorm(0, 0.001)
+    beta.s2 ~ dnorm(0, 0.001)
+
     for(j in 1:n.Lines){
       for(t in 1:n.Years){
 
@@ -50,25 +54,22 @@ cat("
 
     #ecological model
     logit(rodentPresence[j,t]) <- int.r + 
-                            random.r.year[t] + 
                             random.r.line[j] + 
-                            random.r.site2[site2[j]]+
+                            random.r.year[t] + 
+                            beta.t * temporalMatrix1[j,t] +
+                            beta.s * spatialMatrix1[j] +
+                            #beta.s2 * spatialMatrix1_2[j] +
+                            random.r.site2[site2[j]] +
                             random.r.site2.year[site2[j],t]
       }
     }
 
+    #predicted effects spatially
+    for(i in 1:n.Preds){
+        logit(preds[i]) <- int.r + beta.s * climaticGradient[i]
 
-    #get predicted spatial effect
-    for(j in 1:n.Lines){
-        logit(spatialRodents[j]) <- int.r + random.r.line[j] + random.r.site2[site2[j]]
     }
 
-    #get temporal effect (that differs for each line)
-    for(j in 1:n.Lines){
-      for(t in 1:n.Years){
-        logit(temporalRodents[j,t]) <- int.r + random.r.year[t] + random.r.site2.year[site2[j],t]
-      }
-    }
 
     }
     ",fill=TRUE,file="rodent_model.txt")
