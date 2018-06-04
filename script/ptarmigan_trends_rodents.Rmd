@@ -11,26 +11,19 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```
 
-<<<<<<< HEAD
 Get Rodent data
-=======
-#Get Rodent data
->>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 
 ```{r results='asis'}
-library(ggplot2)
+
 allData$SettSmagnager<-as.numeric(allData$SettSmagnager)
 
-<<<<<<< HEAD
 ```
 
 get averag per fylke
 
 ```{r}
-
-=======
 #get averag per fylke
->>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
+
 rodentData <- ddply(allData,.(Year,Fylkesnavn),summarise,
                     rodents = mean(SettSmagnager,na.rm=T))
 
@@ -38,7 +31,7 @@ rodentData <- ddply(allData,.(Year,Fylkesnavn),summarise,
 qplot(Year,rodents,data=rodentData,geom=c("point","line"))+
           theme(legend.position = "none")+
           facet_wrap(~Fylkesnavn)
-<<<<<<< HEAD
+
 ```
 
 compare with rodent data from Erik Framsted
@@ -108,35 +101,26 @@ ggplot(allRodents)+
 
 Use lower-levels for the analysis
 
-```{r}
+```{r, results='asis'}
 
 ############
 #by rapport#
 ###########
-=======
 
-#by rapport...
->>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 rodentData <- ddply(allData,.(Year,Fylkesnavn,Rapporteringsniva),summarise,
                     rodents = mean(SettSmagnager,na.rm=T),
                     totalIndiv=mean(totalIndiv,na.rm=T))
 
 library(boot)
-<<<<<<< HEAD
 #rodentData$rodents[is.na(rodentData$rodents)]<-0
 rodentData$rodents[is.na(rodentData$rodents)]<-NA
 rodentData$rodents<- inv.logit(rodentData$rodents)
 rodentData$Fylkesnavn<-factor(rodentData$Fylkesnavn,levels=FylkeOrder)
 summary(rodentData$rodents)
-=======
-rodentData$rodents[is.na(rodentData$rodents)]<-0
-rodentData$rodents<- inv.logit(rodentData$rodents)
->>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 
 #plotting
 qplot(Year,rodents,data=rodentData,geom=c("point","line"),
       colour=Rapporteringsniva)+
-<<<<<<< HEAD
         theme_bw()+
         scale_x_continuous(breaks=c(2007,2013,2017),labels=c(2007,2013,2017))+
           theme(legend.position = "none")+
@@ -164,10 +148,6 @@ qplot(Year,rodents,data=rodentData,geom=c("point","line"),
 #          theme(legend.position = "none")+
 #          facet_wrap(~Fylkesnavn,ncol=2)
 
-=======
-          theme(legend.position = "none")+
-          facet_wrap(~Fylkesnavn)
->>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 
 #subset(out,Rapporteringsniva=="Indre Troms")
 #   Fylkesnavn Rapporteringsniva
@@ -175,7 +155,6 @@ qplot(Year,rodents,data=rodentData,geom=c("point","line"),
 #39      Troms       Indre Troms
 ```
 
-<<<<<<< HEAD
 Plot in the same order as the weather variable (winter onset, in this case)
 
 ```{r}
@@ -189,8 +168,6 @@ qplot(Year,rodents,data=rodentData,geom=c("point","line"),group=Rapporteringsniv
           facet_wrap(~Fylkesnavn,ncol=1)
 
 ```
-=======
->>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 
 #Organise the covariate
 
@@ -200,18 +177,11 @@ qplot(Year,rodents,data=rodentData,geom=c("point","line"),group=Rapporteringsniv
 myCovariate =rodentData
 myCovariate<-subset(myCovariate,Year%in%nuIndivs$Year)
 myCovariate$site<-paste(myCovariate$Fylkesnavn,myCovariate$Rapporteringsniva,sep="_")
-<<<<<<< HEAD
 #myCovariate$site<-paste(myCovariate$site,myCovariate$OmradeID,sep="#")
 covariateMatrix = my.n
 rowNames<-as.character(sapply(row.names(my.n),function(x)strsplit(as.character(x),"#")[[1]][1]))
 
 all(myCovariate$site%in%rowNames)
-=======
-covariateMatrix = my.n
-rowNames<-as.character(sapply(row.names(my.n),function(x)strsplit(as.character(x),"#")[[1]][1]))
-
-all(myCovariate$Rapporteringsniva%in%rowNames)
->>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 all(myCovariate$Year%in%dimnames(covariateMatrix)[[2]])
 
 #do we have a value for every combinations
@@ -224,15 +194,9 @@ for(i in 1:nrow(covariateMatrix)){
   }
 }
 
-
 #split into spatial and temporal anomalies
-<<<<<<< HEAD
-spatialMatrix<-apply(covariateMatrix,1,median,na.rm=T)
-temporalMatrix<-apply(covariateMatrix,2,median,na.rm=T)
-=======
-spatialMatrix<-as.numeric(rowMeans(covariateMatrix))
-temporalMatrix<-as.numeric(colMeans(covariateMatrix))
->>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
+spatialMatrix<-as.numeric(rowMeans(covariateMatrix,na.rm=T))
+temporalMatrix<-as.numeric(colMeans(covariateMatrix,na.rm=T))
 
 #look at summaries
 summary(spatialMatrix)
@@ -243,11 +207,8 @@ temporalDF<-data.frame(Year=dimnames(my.n)[[2]],value=temporalMatrix)
 spatialDF<-data.frame(LinjeID=rowNames,value=spatialMatrix)
 
 ##make anomalies
-<<<<<<< HEAD
+
 bugs.data$temporalMatrix <- covariateMatrix #this is different from the other variables
-=======
-bugs.data$temporalMatrix <- apply(covariateMatrix,2,function(x)x-spatialMatrix)
->>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 bugs.data$spatialMatrix <- t(apply(covariateMatrix,1,function(x)x-temporalMatrix))
 bugs.data$spatialMatrix2 <- bugs.data$spatialMatrix^2#also add a polynomial term for the spatial variation
 
@@ -283,7 +244,7 @@ allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
                                            interaction(tMmelted[,2],tMmelted[,1]))]
 
 ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
-  geom_point(aes(colour=factor(OmradeID)))+
+  geom_point(aes(colour=factor(OmradeID)),alpha=0.5)+
   theme(legend.position="none")+
   ggtitle("temporal")+
   facet_wrap(~Fylkesnavn,scales="free")
@@ -308,14 +269,10 @@ Spatial pattern and temporal anomalies
 
 #the temporal anomalies are the same
 #the spatial pattern is now assumed to be fixed
-<<<<<<< HEAD
 bugs.data$spatialMatrix <- spatialMatrix
 bugs.data$spatialMatrix2 <-bugs.data$spatialMatrix^2
 #bugs.data$spatialMatrix<-bugs.data$spatialMatrix-median(bugs.data$spatialMatrix)
 #bugs.data$spatialMatrix2<-bugs.data$spatialMatrix2-median(bugs.data$spatialMatrix2)
-
-qplot(bugs.data$spatialMatrix,apply(bugs.data$temporalMatrix,1,sd))
-
 
 ```
 
@@ -367,15 +324,7 @@ print(out1,2)
 setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
 save(out1,file="out1_rodent_glm_scaled.RData")
 ```
-=======
-bugs.data$spatialMatrix <- cbind(spatialMatrix,spatialMatrix,spatialMatrix,spatialMatrix,spatialMatrix,spatialMatrix,spatialMatrix,spatialMatrix,spatialMatrix,spatialMatrix)
-bugs.data$spatialMatrix2 <-bugs.data$spatialMatrix^2
-bugs.data$spatialMatrix<-bugs.data$spatialMatrix-median(bugs.data$spatialMatrix)
-bugs.data$spatialMatrix2<-bugs.data$spatialMatrix2-median(bugs.data$spatialMatrix2)
 
-```
-
->>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 
 #Fit a basic model against abundance
 
@@ -422,8 +371,6 @@ save(out1,file="out1_rodent.RData")
 
 ```
 
-<<<<<<< HEAD
-#including current and previous year rodent effects
 
 ```{r}
 
@@ -446,8 +393,6 @@ save(out1,file="out1_rodent_lagged.RData")
 ```
 
 
-=======
->>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
 #modelling the probability see a rodent
 
 ```{r warning=FALSE}
@@ -535,9 +480,5 @@ print(out1,2)
 setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
 save(out1,file="out1_rodent2.RData")
 
-<<<<<<< HEAD
 ```
 
-=======
-```
->>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893

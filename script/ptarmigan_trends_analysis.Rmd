@@ -11,150 +11,6 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```
 
-Import the data - check the subsetting is as wanted
-
-```{r}
-#library(knitr)
-#knit("ptarmigan_formatting.Rmd")
-load("/data/home/diana.bowler/NorskPtarmigan/allData.RData")
-head(allData)
-
-```
-
-
-Fitting the full model on total population - subset to 2007 onwards - including the distance model
-
-Organise the data
-
-```{r, warning=FALSE}
-
-library(magrittr)
-library(plyr); library(dplyr)
-
-#subset
-allData<-subset(allData,Year>2006)
-
-#remove hyphens for help with subsetting
-allData$Fylkesnavn<-gsub("-"," ",allData$Fylkesnavn)
-allData$Rapporteringsniva<-gsub("-"," ",allData$Rapporteringsniva)
-
-#change kommune name for Dovre Fjellstyre
-allData$Kommunenavn[which(allData$Kommunenavn=="Dovre Fjellstyrene")]<-"Dovre"
-
-#get number of individuals
-nuIndivs <-
-  allData%>%
-  group_by(Year,LinjeID,Fylkesnavn,Kommunenavn,OmradeNavn,Rapporteringsniva, add = T) %>%
-  summarise(nuAdults = sum(Adults), 
-            nuJuvs = sum(AntallKylling),
-            nuTotal = sum(totalIndiv),
-            maxTransectLength=max(LengdeTaksert,na.rm=T))
-
-nuIndivs$iYear <- nuIndivs$Year - min(nuIndivs$Year) + 1
-summary(nuIndivs)
-
-library(reshape2)
-nuIndivs$Line<-paste(nuIndivs$Fylkesnavn,nuIndivs$Rapporteringsniva,sep="_")
-nuIndivs$Line<-paste(nuIndivs$Line,nuIndivs$LinjeID,sep="-")
-my.n <- acast(nuIndivs,Line~Year,value.var="nuTotal")
-
-#get transect length data
-allData$Line<-paste(allData$Fylkesnavn,allData$Rapporteringsniva,sep="_")
-allData$Line<-paste(allData$Line,allData$LinjeID,sep="-")
-transectLengths <- acast(allData,Line~Year,value.var="LengdeTaksert",fun=max,na.rm=T)
-transectLengths[is.na(my.n)]<-0
-
-#order site info
-siteInfo<-data.frame(Line=row.names(my.n))
-siteInfo$Fylkesnavn<-as.numeric(as.factor(sapply(siteInfo$Line,function(x)strsplit(as.character(x),"_")[[1]][1])))
-siteInfo$Rapporteringsniva<-as.numeric(as.factor(sapply(siteInfo$Line,function(x)strsplit(as.character(x),"-")[[1]][1])))
-siteInfo$LinjeID<-as.numeric(as.factor(siteInfo$Line))
-
-#Create a data frame with only detection
-allDetections<-subset(allData,totalIndiv>0&!is.na(totalIndiv))
-allDetections<-arrange(allDetections,LinjeID)
-head(allDetections)
-
-#Organise fur bugs
-bugs.data <- list(#For the state model
-                  n.Lines = length(unique(nuIndivs$LinjeID)),
-                  n.Years = length(unique(nuIndivs$Year)),
-                  n.Sites = length(unique(nuIndivs$Fylkesnavn)),
-                  n.Sites2 = length(unique(interaction(nuIndivs$Rapporteringsniva,nuIndivs$Fylkesnavn))),
-                  n.LineYear = length(unique(nuIndivs$LinjeID))*length(unique(nuIndivs$Year)),
-                  line = siteInfo$LinjeID,
-                  site = siteInfo$Fylkesnavn,
-                  site2 = siteInfo$Rapporteringsniva, 
-                  year = (1:length(unique(nuIndivs$Year))),
-                  NuIndivs = my.n,
-                  TransectLength = transectLengths,
-                  #For the distance model
-                  W = 200,
-                  N = nrow(allDetections),
-                  y = allDetections$LinjeAvstand,
-                  detectionGroupSize = log(allDetections$totalIndiv+1),
-                  GroupSize = allDetections$totalIndiv,
-                  zeros.dist = rep(0,nrow(allDetections)),
-                  detectionLine =as.numeric(factor(allDetections$LinjeID)),
-                  detectionYear = as.numeric(factor(allDetections$Year)),
-                  detectionSite = as.numeric(factor(allDetections$Rapporteringsniva)),
-                  detectionLineYear = as.numeric(factor(interaction(allDetections$LinjeID,allDetections$Year))))
-
-```
-
-Plot the data
-
-```{r results='asis'}
-library(ggplot2)
-
-ggplot(nuIndivs,aes(x=Year,y=nuTotal,group=LinjeID))+
-  geom_point(aes(colour=LinjeID))+
-  geom_line(aes(colour=LinjeID))+
-  facet_wrap(~Fylkesnavn)+
-  theme(legend.position="none")
-
-```
-#look also at trends in the group size
-
-```{r}
-
-ggplot(subset(allData,!is.na(totalIndiv)),aes(x=Year,y=totalIndiv,group=LinjeID))+
-  geom_point(aes(colour=LinjeID))+
-  geom_line(aes(colour=LinjeID))+
-  facet_wrap(~Fylkesnavn)+
-  theme(legend.position="none")
-
-```
-
-Run model in JAGS - with a long-term trend term
-
-```{r}
-
-source('C:/Users/diana.bowler/OneDrive - NINA/methods/models/bugsFunctions.R')
-
-setwd("C:/Users/diana.bowler/OneDrive - NINA/Alpine/Ptarmigan/Scripts")
-
-#inits <- function(){list(trend = dunif(-2,0))}
-
-params <- c("int","beta.auto","line.d.sd","site.d.sd","year.d.sd","totNumbers","predESW")
-
-#inits <- function(){list(b.df.0 = runif(1,2,5))}
-
-out1 <- jags(bugs.data, inits=NULL, params, "combined_model_ar1.txt", n.thin=nt,
-               n.chains=3, n.burnin=1000,n.iter=5000)
-```
-
-Print output
-
-```{r results='asis'}
-
-#library(ggmcmc)
-#ggs_traceplot(ggs(out1$samples)) 
-
-print(out1,2)
-
-```
-
 Fit the model without the trend term and just random year to year variation, that also varies by fylk and rapp
 
 Run model in JAGS
@@ -162,44 +18,43 @@ Run model in JAGS
 ```{r}
 source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
 
-library(jagsUI)
-
-params <- c("line.d.sd","year.d.sd","site.d.sd","site2.d.sd","syear.d.sd","s2year.d.sd","Density","meanNumbers")
+params <- c("int.d","line.d.sd","year.d.sd","site.d.sd","site2.d.sd","syear.d.sd","s2year.d.sd",
+            "b.df.0","b.group.size",
+            "int.gs","line.sd","line.year.sd","Density","predGroupSize")
 
 setwd("/data/home/diana.bowler/NorskPtarmigan/models")
 out1 <- jags(bugs.data, inits=NULL, params, "combined_model_noTrend.txt", n.thin=nt,
-               n.chains=3, n.burnin=1000,n.iter=5000,parallel = T)
+               n.chains=3, n.burnin=3000,n.iter=7000,parallel = T)
 ```
 
+Save and print the model
 
 ```{r results='asis'}
-#library(ggmcmc)
-#ggs_traceplot(ggs(out1$samples)) 
 
 print(out1,2)
-save(out1,file="out1_ptarmigan_noTrends2.RData")
-
-```
-
-#print at a later stage
-```{r}
 setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
-load("out1_ptarmigan_noTrends2.RData")
-<<<<<<< HEAD
-print(out1$summary,2)
-=======
-print(out1)
->>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
-
+#save(out1,file="out1_ptarmigan_noTrends.RData")#group size model is random line and year
+save(out1,file="out1_ptarmigan_noTrends2.RData")#group size model is random line and line/year
 ```
 
+get and check group size predictions
 
-#Pull out and plot the density estimates
+```{r}
+out<-getBUGSFits(out1,param="predGroupSize")
+
+#get mean group size for detections
+meanGP<-ddply(allDetections,.(LinjeID,Year),summarise,meanGP=mean(totalIndiv))
+out$meanGP<-meanGP$meanGP[match(interaction(out$lineIndex,out$Year),interaction(meanGP$LinjeID,meanGP$Year))]
+qplot(mean,meanGP,data=out)
+#ok!
+```
+
+Pull out and plot the density estimates:
 
 ```{r results='asis'}
 #Have they converged
 setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
-load("out1_ptarmigan_noTrends2.RData")
+load("out1_ptarmigan_noTrends.RData")
 densityDF<-data.frame(meanNu=out1$mean$Density)
 densityDF$LinjeID<-1:nrow(densityDF)
 densityDF<-merge(densityDF,siteInfo,by="LinjeID")
@@ -211,13 +66,16 @@ densityDF<-melt(densityDF,id=c("LinjeID","Line","Fylkesnavn","Rapporteringsniva"
 densityDF$variable<-gsub("meanNu.","",densityDF$variable)
 densityDF$Year<-as.numeric(as.character(densityDF$variable))+2006
 densityDF$value<-as.numeric(as.character(densityDF$value))
+
 qplot(Year,value,data=densityDF,group=LinjeID,colour=Rapporteringsniva,geom="path",facets=~Fylkesnavn)+
   theme_light()+
   theme(legend.position="none")+ylab("Predicted Density km2")
 #each site seems to have its own dynamic over time as specified by the model
+
 ```
 
-Look at spatial pattern
+Look at spatial pattern:
+
 ```{r}
 #get average abundance per linjeID
 linePredictions <- ddply(densityDF,.(originalLinjeID),summarise,density=mean(value))

@@ -10,7 +10,6 @@ library(ggplot2)
 set.factory("bugs::Conjugate", FALSE, type="sampler")
 
 # Default parameters
-<<<<<<< HEAD
 ni <- 6000   ;   nb <- 2000   ;   nt <- 2   ;   nc <- 3
 
 
@@ -49,7 +48,7 @@ my_ggs_ppmean<-function(D,outcome){
 #model fits
 
 getBUGSFits<-function(model,param="Density"){
-  modelSummary<-data.frame(out2$summary[grepl(param,row.names(out2$summary)),])
+  modelSummary<-data.frame(model$summary[grepl(param,row.names(model$summary)),])
   #extract bits in brackets 
   modelSummary$ParamNu <- sub(".*\\[([^][]+)].*", "\\1", row.names(modelSummary))
   modelSummary$lineIndex <- sapply(modelSummary$ParamNu,function(x)strsplit(x,",")[[1]][1])
@@ -60,6 +59,4 @@ getBUGSFits<-function(model,param="Density"){
   modelSummary$Year <- as.numeric(as.character(modelSummary$yearIndex)) + 2006
   return(modelSummary)
 }
-=======
-ni <- 6000   ;   nb <- 2000   ;   nt <- 2   ;   nc <- 3
->>>>>>> 10a97d73c42e80a4d80486cd20303edbf2d0b893
+
