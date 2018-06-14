@@ -1,0 +1,197 @@
+---
+title: "detection model"
+author: "Diana Bowler"
+date: "2 november 2017"
+output: html_document
+---
+
+```{r}
+
+library(knitr)
+load("/data/home/diana.bowler/NorskPtarmigan/allData.RData")
+head(allData)
+
+```
+
+Get population data
+
+```{r, warning=FALSE}
+library(magrittr)
+library(plyr); library(dplyr)
+library(ggplot2)
+
+#subset
+allData<-subset(allData,Year>2006 & Year<2018)
+
+#remove hyphens for help with subsetting
+allData$Fylkesnavn<-gsub("-"," ",allData$Fylkesnavn)
+allData$Rapporteringsniva<-gsub("-"," ",allData$Rapporteringsniva)
+
+#change kommune name for Dovre Fjellstyre
+allData$Kommunenavn[which(allData$Kommunenavn=="Dovre Fjellstyrene")]<-"Dovre"
+#Nordland__Indre Troms, Troms__Indre Troms 
+allData$Fylkesnavn[which(allData$Rapporteringsniva=="Indre Troms")]<-"Troms"
+
+#for tesing subset to Troms and Finnmark
+#allData<-subset(allData,Fylkesnavn%in%c("Troms","Finnmark"))
+
+#get number of individuals per line
+nuIndivs <-
+  allData%>%
+  group_by(Year,LinjeID,Fylkesnavn,Kommunenavn,OmradeNavn,OmradeID,Rapporteringsniva, add = T) %>%
+  summarise(nuAdults = sum(Adults), 
+            nuJuvs = sum(AntallKylling),
+            nuTotal = sum(totalIndiv),
+            maxTransectLength=max(LengdeTaksert,na.rm=T))
+
+nuIndivs$iYear <- nuIndivs$Year - min(nuIndivs$Year) + 1
+summary(nuIndivs)
+
+#reshape the line data into an array
+library(reshape2)
+nuIndivs$Line<-paste(nuIndivs$Fylkesnavn,nuIndivs$Rapporteringsniva,sep="_")
+nuIndivs$Line<-paste(nuIndivs$Line,nuIndivs$OmradeID,sep="#")
+nuIndivs$Line<-paste(nuIndivs$Line,nuIndivs$LinjeID,sep="-")
+my.n <- acast(nuIndivs,Line~Year,value.var="nuTotal")
+
+#check all have at least one positive and non-zero value
+summary(as.numeric(apply(my.n,1,max,na.rm=T)))#yes!!
+
+#get transect length data
+#mistake with 1405 - transect length
+allData$LengdeTaksert[which(allData$LinjeID==1405&allData$LengdeTaksert==1100)] <- 11000
+allData$Line<-paste(allData$Fylkesnavn,allData$Rapporteringsniva,sep="_")
+allData$Line<-paste(allData$Line,allData$OmradeID,sep="#")
+allData$Line<-paste(allData$Line,allData$LinjeID,sep="-")
+transectLengths <- acast(allData,Line~Year,value.var="LengdeTaksert",fun=max,na.rm=T)
+all(row.names(my.n)==row.names(transectLengths))
+transectLengths[is.na(my.n)]<-0
+#there are some -1 transect lengths
+transectLengths[transectLengths<0]<-0#Finnmark_Indre Finnmark-882/3
+save(transectLengths,file="transectLengths.RData")
+my.n[transectLengths==0]<-NA
+
+#get site info
+siteInfo<-data.frame(Line=row.names(my.n))
+siteInfo$Fylkesnavn<-as.numeric(factor(sapply(siteInfo$Line,function(x)strsplit(as.character(x),"_")[[1]][1])))
+siteInfo$Rapporteringsniva<-as.numeric(factor(sapply(siteInfo$Line,function(x)strsplit(as.character(x),"#")[[1]][1])))
+siteInfo$LinjeID<-as.numeric(factor(siteInfo$Line))
+siteInfo$originalLinjeID<-sapply(siteInfo$Line,function(x)strsplit(as.character(x),"#")[[1]][2])
+siteInfo$originalLinjeID<-sapply(siteInfo$originalLinjeID,function(x)strsplit(as.character(x),"-")[[1]][2])
+siteInfo$Kommunenavn<-nuIndivs$Kommunenavn[match(siteInfo$originalLinjeID,nuIndivs$LinjeID)]
+save(siteInfo,file="siteInfo.RData")
+
+#Create a data frame with only detection
+allDetections<-subset(allData,totalIndiv>0&!is.na(totalIndiv))
+allDetections<-merge(siteInfo,allDetections[,-c(2:7)],by="Line",all.y=T)
+allDetetections<-arrange(allDetections,Year,Rapporteringsniva,LinjeID)
+
+head(allDetections)
+
+#Organise fur bugs
+bugs.data <- list(n.Lines = length(unique(nuIndivs$LinjeID)),
+                  n.Years = length(unique(nuIndivs$Year)),
+                  n.Sites = length(unique(nuIndivs$Fylkesnavn)),
+                  n.Sites2 = length(unique(interaction(nuIndivs$Rapporteringsniva,nuIndivs$Fylkesnavn))),
+                  line = siteInfo$LinjeID,
+                  site = siteInfo$Fylkesnavn,
+                  site2 = siteInfo$Rapporteringsniva, 
+                  year = (1:length(unique(nuIndivs$Year))),
+                  NuIndivs = my.n,
+                  TransectLength = transectLengths,
+                  #For the distance model
+                  W = 200,
+                  N = nrow(allDetections),
+                  y = allDetections$LinjeAvstand,
+                  detectionGroupSize = log(allDetections$totalIndiv+1),
+                  GroupSize = allDetections$totalIndiv,
+                  zeros.dist = rep(0,nrow(allDetections)),
+                  detectionLine = allDetections$LinjeID,
+                  detectionYear = as.numeric(factor(allDetections$Year)),
+                  detectionSite = allDetections$Rapporteringsniva)
+
+#highlight all those line with different transect lengths
+#tl<-ddply(allData,.(LinjeID),summarise,nu=length(unique(LengdeTaksert)),maxtl=max(LengdeTaksert,na.rm=T),mintl=min(LengdeTaksert,na.rm=T))
+#tl<-subset(tl,nu>1)
+#tl$diff<-tl$maxtl-tl$mintl
+#tl<-tl[order(tl$diff,decreasing=T),]
+
+#year one priors
+bugs.data$year1<-as.numeric(apply(my.n,1,function(x)ifelse(!is.na(x[1]),x[1],max(x,na.rm=T))))
+bugs.data$year1[bugs.data$year1==0]<-1
+
+names(bugs.data)
+
+#specify Fylke in order of latitude
+FylkeOrder<-c("Finnmark","Troms","Nordland","Nord Trøndelag","Sør Trøndelag","Hedmark",
+              "Oppland","Buskerud","Hordaland","Vest Agder")
+
+```
+
+
+Run model to only extract the effective strip widths
+
+```{r}
+
+source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
+
+params <- c("b.df.0","b.group.size","site2.year.sd","line.year.sd","line.sd","int.gs",
+            "random.gs.year","predESW","predGroupSize")
+
+setwd("/data/home/diana.bowler/NorskPtarmigan/models")
+out1 <- jags(bugs.data, inits=NULL, params, "ESW_model.txt", n.thin=5,n.chains=3, 
+             n.burnin=600,n.iter=2000,parallel = T)
+
+print(out1,2)
+
+save(out1,file="/data/home/diana.bowler/NorskPtarmigan/model_outputs/out1_ESW.RData")
+
+```
+
+#Compare preds of the random year only model - works!!!!
+
+```{r,results='asis}
+
+#get model-calulated predictions
+out<-getBUGSFits(out1,param="predGroupSize")
+qplot(Year,mean,data=out)+
+  geom_point()
+
+#get manual predictions
+outM<-getBUGSFits(out1,param="random.gs.year")
+outM$mean2 <- exp(outM$mean + out1$mean$int.gs)
+
+qplot(as.numeric(lineIndex),mean2,data=outM)
+
+#observations
+ddply(allDetections,.(Year),summarise,meanGS = mean(totalIndiv,na.rm=T))
+#good!!!
+
+```
+
+get group size fits and 
+compare them with the observed ones
+
+```{r}
+
+out<-getBUGSFits(out1,param="predGroupSize")
+
+obsGroupSize <- ddply(allData,.(LinjeID,Year),summarise,meanGS = mean(totalIndiv,na.rm=T))
+out$obsGS <- obsGroupSize$meanGS[match(interaction(out$originalLinjeID,out$Year),
+                                       interaction(obsGroupSize$LinjeID,obsGroupSize$Year))]  
+qplot(mean,obsGS,data=out)
+
+```
+
+#look at histogram of ESW
+
+```{r}
+
+esw<-getBUGSFits(out1,param="predESW")
+hist(esw$mean)
+summary(esw$mean)
+#little variation...
+save(esw,file="/data/home/diana.bowler/NorskPtarmigan/model_outputs/esw.RData")
+
+```
+
