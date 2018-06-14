@@ -50,6 +50,9 @@ springData$Year <- year(springData$Date)
 springData <- melt(tapply(springData$temp, list(springData$Year,springData$site),mean))
 names(springData)<-c("Year","site","temp")
 
+#subset to dataset
+springData<-subset(springData,site%in%allData$LinjeID)
+
 #add spatial cluster units
 springData$OmradeID<-allData$OmradeID[match(springData$site,allData$LinjeID)]
 springData$Fylke<-allData$Fylkesnavn[match(springData$site,allData$LinjeID)]
@@ -217,8 +220,8 @@ summary(bugs.data$temporalMatrix1)
 
 ```{r}
 
-bugs.data$spatialMatrix2 <- bugs.data$spatialMatrix-0.5
-bugs.data$temporalMatrix2 <- bugs.data$temporalMatrix-0.5
+bugs.data$spatialMatrix2 <- bugs.data$spatialMatrix
+bugs.data$temporalMatrix2 <- bugs.data$temporalMatrix
 summary(bugs.data$spatialMatrix2)
 summary(bugs.data$temporalMatrix2)
 
@@ -268,7 +271,6 @@ g<-plot_grid(g1, g2,labels = c("A", "B"))
 
 ```
 
-
 #model the probability to see a rodent
 
 ```{r}
@@ -294,15 +296,11 @@ setwd("/data/home/diana.bowler/NorskPtarmigan/models")
 out1 <- jags(bugs.data, inits=NULL, params, "rodent_model.txt", n.thin=nt,
                n.chains=3, n.burnin=1000,n.iter=5000,parallel = T)
 
-#no support for quadratic interaction effect
-
 print(out1,2)
-#positive effect temporally (more in warmer years)
-#negative effect spatially (more in colder places)
 
 ```
 
-Plot the predictions
+Plot the predicted effects of climate
 
 ```{r}
 predsDF <- data.frame(out1$summary[grepl("preds",row.names(out1$summary)),])
@@ -317,9 +315,17 @@ ggplot(predsDF)+
 
 ```
 
-#weather interaction effects - additive effects of rodents
+Plot the predicted time series
 
 ```{r}
+
+
+```
+
+#testing
+
+```{r}
+
 source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
 
 #get prioirs for density
@@ -342,6 +348,47 @@ params <- c("int.d","beta.auto",
             "beta.covariate_int",
             "beta.covariate_rodT","beta.covariate_rodTL",
             "obs.d.sd","site.d.sd","line.d.sd","site2.d.sd","year.d.sd",
+            "b.df.0","b.group.size")
+
+setwd("/data/home/diana.bowler/NorskPtarmigan/models")
+
+#specific initial values
+inits<- function(){
+  list(predDensity=bugs.data$priorDensity)}
+    
+out1 <- jags(bugs.data, inits=NULL, params, "combined_model_test.txt", n.thin=5,n.chains=3, 
+             n.burnin=100,n.iter=500,parallel = T)
+
+print(out1,2)
+
+```
+
+#weather interaction effects - additive effects of rodents
+
+```{r}
+source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
+
+#get prioirs for density
+priorDensity<-my.n*(transectLengths/1000)*(110/1000)
+lineAverage<-apply(priorDensity,1,function(x)mean(x,na.rm=T))
+for(i in 1:nrow(priorDensity)){
+  priorDensity[i,][is.na(priorDensity[i,])]<-lineAverage[i]
+}
+bugs.data$priorDensity<-priorDensity
+
+#first year
+bugs.data$priorDensity1<-ceiling(as.numeric(ifelse(bugs.data$priorDensity[,1]==0,1,bugs.data$priorDensity[,1])))
+#bugs.data$priorDensity<-priorDensity
+
+#predicted climatic range
+bugs.data$climaticGradient<-seq(min(bugs.data$spatialMatrix1),max(bugs.data$spatialMatrix1),length.out=1000)
+bugs.data$n.Preds<-length(bugs.data$climaticGradient)
+
+params <- c("int.d","beta.auto",
+            "beta.covariateS","beta.covariateT","beta.covariateS2",
+            "beta.covariate_int",
+            "beta.covariate_rodT","beta.covariate_rodTL",
+            "obs.d.sd","site.d.sd","line.d.sd","site2.d.sd","year.d.sd",
             "b.df.0","b.group.size",
             "preds")
 
@@ -349,9 +396,9 @@ setwd("/data/home/diana.bowler/NorskPtarmigan/models")
 
 #specific initial values
 inits<- function(){
-  list(beta.auto=runif(1,0,1)),Density=bugs.data$priorDensity}
-    
-out1 <- jags(bugs.data, inits=inits, params, "combined_model_weather_interaction_rodent_additive.txt", n.thin=nt,n.chains=3, n.burnin=3000,n.iter=10000,parallel = T)
+  list(beta.auto=runif(1,0,1),int.d=runif(1,0,5))}
+#predDensity=bugs.data$priorDensity,
+out1 <- jags(bugs.data, inits=inits, params, "combined_model_weather_interaction_rodent_additive.txt", n.thin=nt,n.chains=3, n.burnin=30,n.iter=100,parallel = T)
 
 print(out1,2)
 
@@ -359,7 +406,8 @@ setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
 #save(out1,file="out1_springTemp_weather_interaction_rodent_additive.RData")
 #save(out1,file="out1_springTemp_weather_interaction_rodent_additive2.RData")# second dpois term
 #save(out1,file="out1_springTemp_weather_interaction_rodent_additive3.RData")# two dens dep terms
-save(out1,file="out1_springTemp_weather_interaction_rodent_additive4.RData")#quadratic spatial
+#save(out1,file="out1_springTemp_weather_interaction_rodent_additive4.RData")#quadratic spatial
+#save(out1,file="out1_springTemp_weather_interaction_rodent_additive5.RData")#longer run
 
 ```
 
