@@ -109,12 +109,17 @@ Use lower-levels for the analysis
 
 rodentData <- ddply(allData,.(Year,Fylkesnavn,Rapporteringsniva),summarise,
                     rodents = mean(SettSmagnager,na.rm=T),
-                    totalIndiv=mean(totalIndiv,na.rm=T))
+                    totalIndiv=mean(totalIndiv,na.rm=T),
+                    nuRodents=
+                      length(SettSmagnager[!is.na(SettSmagnager) & SettSmagnager==1]),
+                    nuSites=length(SettSmagnager[!is.na(SettSmagnager)]))
 
 library(boot)
 #rodentData$rodents[is.na(rodentData$rodents)]<-0
 rodentData$rodents[is.na(rodentData$rodents)]<-NA
-rodentData$rodents<- inv.logit(rodentData$rodents)
+rodentData$rodents[rodentData$rodents==0]<-0.01
+rodentData$rodents[rodentData$rodents==1]<-0.99
+rodentData$rodents<- logit(rodentData$rodents)
 rodentData$Fylkesnavn<-factor(rodentData$Fylkesnavn,levels=FylkeOrder)
 summary(rodentData$rodents)
 
@@ -239,6 +244,7 @@ ggplot(allData,aes(x=Covariate,y=totalIndiv,group=LinjeID))+
 #Alternative plotting
 
 ```{r results='asis'}
+
 tMmelted<-melt(bugs.data$temporalMatrix)
 allData$Covariate<-tMmelted$value[match(interaction(allData$Year,allData$Line),
                                            interaction(tMmelted[,2],tMmelted[,1]))]

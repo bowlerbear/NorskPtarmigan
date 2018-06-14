@@ -1,0 +1,134 @@
+---
+title: "combined_model_covariates"
+author: "Diana Bowler"
+date: "14 november 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+Get Rodent data
+
+```{r results='asis'}
+
+allData$SettSmagnager<-as.numeric(allData$SettSmagnager)
+
+```
+
+Use lower-levels for the analysis
+
+```{r, results='asis'}
+
+############
+#by rapport#
+###########
+
+rodentData <- ddply(allData,.(Year,Fylkesnavn,Rapporteringsniva),summarise,
+                    rodents = mean(SettSmagnager,na.rm=T),
+                    totalIndiv=mean(totalIndiv,na.rm=T),
+                    nuRodents=
+                      length(SettSmagnager[!is.na(SettSmagnager) & SettSmagnager==1]),
+                    nuSites=length(SettSmagnager[!is.na(SettSmagnager)]))
+
+library(boot)
+rodentData$rodents[is.na(rodentData$rodents)]<-NA
+rodentData$Fylkesnavn<-factor(rodentData$Fylkesnavn,levels=FylkeOrder)
+summary(rodentData$rodents)
+
+#plotting
+qplot(Year,rodents,data=rodentData,geom=c("point","line"),
+      colour=Rapporteringsniva)+
+        theme_bw()+
+        scale_x_continuous(breaks=c(2007,2013,2017),labels=c(2007,2013,2017))+
+          theme(legend.position = "none")+
+          facet_wrap(~Fylkesnavn,ncol=2)
+
+###############
+#by omrade ID#
+##############
+#rodentData <- ddply(allData,.(Year,Fylkesnavn,Rapporteringsniva,OmradeID),summarise,
+#                    rodents = mean(SettSmagnager,na.rm=T),
+#                    totalIndiv=mean(totalIndiv,na.rm=T))
+
+#library(boot)
+#rodentData$rodents[is.na(rodentData$rodents)]<-0
+#rodentData$rodents<- inv.logit(rodentData$rodents)
+
+
+#rodentData$Fylkesnavn<-factor(rodentData$Fylkesnavn,levels=FylkeOrder)
+
+#plotting
+#qplot(Year,rodents,data=rodentData,geom=c("point","line"),
+#      colour=OmradeID,group=OmradeID)+
+#        theme_bw()+
+#        scale_x_continuous(breaks=c(2007,2013,2017),labels=c(2007,2013,2017))+
+#          theme(legend.position = "none")+
+#          facet_wrap(~Fylkesnavn,ncol=2)
+
+
+#subset(out,Rapporteringsniva=="Indre Troms")
+#   Fylkesnavn Rapporteringsniva
+#17   Nordland       Indre Troms
+#39      Troms       Indre Troms
+```
+
+#Organise the covariate
+
+```{r}
+
+#choose my covariate
+myCovariate =rodentData
+myCovariate<-subset(myCovariate,Year%in%nuIndivs$Year)
+myCovariate$site<-paste(myCovariate$Fylkesnavn,myCovariate$Rapporteringsniva,sep="_")
+#myCovariate$site<-paste(myCovariate$site,myCovariate$OmradeID,sep="#")
+covariateMatrix = my.n
+rowNames<-as.character(sapply(row.names(my.n),function(x)strsplit(as.character(x),"#")[[1]][1]))
+
+all(myCovariate$site%in%rowNames)
+all(myCovariate$Year%in%dimnames(covariateMatrix)[[2]])
+
+#do we have a value for every combinations
+table(myCovariate$Year)
+
+for(i in 1:nrow(covariateMatrix)){
+  for(j in 1:ncol(covariateMatrix)){
+    covariateMatrix[i,j] = myCovariate$rodents[myCovariate$site==rowNames[i]&
+                                              myCovariate$Year==dimnames(covariateMatrix)[[2]][j]]
+  }
+}
+
+#split into spatial and temporal anomalies
+spatialMatrix<-as.numeric(rowMeans(covariateMatrix,na.rm=T))
+temporalMatrix<-as.numeric(colMeans(covariateMatrix,na.rm=T))
+
+#look at summaries
+summary(spatialMatrix)
+summary(temporalMatrix)
+
+#make a DF
+temporalDF<-data.frame(Year=dimnames(my.n)[[2]],value=temporalMatrix)
+spatialDF<-data.frame(LinjeID=rowNames,value=spatialMatrix)
+
+##make anomalies
+
+bugs.data$temporalMatrix <- covariateMatrix #this is different from the other variables
+bugs.data$spatialMatrix <- t(apply(covariateMatrix,1,function(x)x-temporalMatrix))
+bugs.data$spatialMatrix2 <- bugs.data$spatialMatrix^2#also add a polynomial term for the spatial variation
+
+```
+
+Spatial pattern and temporal anomalies
+
+```{r}
+
+#the temporal anomalies are the same
+#the spatial pattern is now assumed to be fixed
+bugs.data$spatialMatrix <- spatialMatrix
+bugs.data$spatialMatrix2 <-bugs.data$spatialMatrix^2
+
+```
+
