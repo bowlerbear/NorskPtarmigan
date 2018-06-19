@@ -1,4 +1,4 @@
-
+setwd("/data/home/diana.bowler/NorskPtarmigan/models")
 #distance model
 cat("
     model{
@@ -40,11 +40,21 @@ cat("
       }
     }
     
+    #random site effect
+    site.r.sd ~ dunif(0,10)
+    site.r.tau <- pow(site.r.sd,-2)
+    for(j in 1:n.Sites){
+      random.r.site[j] ~ dnorm(0,site.r.tau)
+    }
 
-    #fit model
-    beta.t ~ dnorm(0, 0.001)
-    beta.s ~ dnorm(0, 0.001)
-    beta.s2 ~ dnorm(0, 0.001)
+    #random site/year effect
+    year.site.r.sd ~ dunif(0,10)
+    year.site.r.tau <- pow(year.site.r.sd,-2)
+    for(j in 1:n.Sites){
+      for(t in 1:n.Years){
+        random.r.site.year[j,t] ~ dnorm(0,year.site.r.tau)
+      }
+    }
 
     for(j in 1:n.Lines){
       for(t in 1:n.Years){
@@ -56,19 +66,12 @@ cat("
     logit(rodentPresence[j,t]) <- int.r + 
                             random.r.line[j] + 
                             random.r.year[t] + 
-                            beta.t * temporalMatrix1[j,t] +
-                            beta.s * spatialMatrix1[j] +
-                            #beta.s2 * spatialMatrix1_2[j] +
+                            random.r.site[site[j]]+ 
                             random.r.site2[site2[j]] +
-                            random.r.site2.year[site2[j],t]
+                            random.r.site2.year[site2[j],t]+
+                            random.r.site.year[site[j],t]
       }
     }
 
-    #predicted effects spatially
-    for(i in 1:n.Preds){
-        logit(preds[i]) <- int.r + beta.s * climaticGradient[i]
     }
-
-
-    }
-    ",fill=TRUE,file="rodent_model.txt")
+    ",fill=TRUE,file="rodent_preds.txt")
