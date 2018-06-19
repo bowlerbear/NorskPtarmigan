@@ -1,3 +1,4 @@
+setwd("/data/home/diana.bowler/NorskPtarmigan/models")
 #distance model
 cat("
     model{
@@ -54,33 +55,53 @@ cat("
       random.gs.line[j] ~ dnorm(0,line.tau)
     }
     
-    #random time effect
-    year.sd ~ dunif(0,10)
-    year.tau <- pow(year.sd,-2)
-    for(t in 1:n.Years){
-    random.gs.year[t] ~ dnorm(0,year.tau)
+    #random site2 effect
+    site2.sd ~ dunif(0,10)
+    site2.tau <- pow(site2.sd,-2)
+    for(j in 1:n.Sites2){
+      random.gs.site2[j] ~ dnorm(0,site2.tau)
     }
-
+    
+    #random year effect
+    year.sd ~ dunif(0,10)
+    year.tau <- pow( year.sd,-2)
+    for(t in 1:n.Years){
+      random.gs.year[t] ~ dnorm(0, year.tau)
+    }
+    
     #random line/year effect
     line.year.sd ~ dunif(0,10)
     line.year.tau <- pow( line.year.sd,-2)
     for(j in 1:n.Lines){
-        for(t in 1:n.Years){
-          random.gs.line.year[j,t] ~ dnorm(0, line.year.tau)
-        }
+      for(t in 1:n.Years){
+        random.gs.line.year[j,t] ~ dnorm(0, line.year.tau)
+      }
     }
-
+    
+    #random site2/year effect
+    site2.year.sd ~ dunif(0,10)
+    site2.year.tau <- pow(site2.year.sd,-2)
+    for(j in 1:n.Sites2){
+      for(t in 1:n.Years){
+        random.gs.site2.year[j,t] ~ dnorm(0, site2.year.tau)
+      }
+    }
+    
     #Model
     #for each detection, model group size
     for(i in 1:N){
       GroupSize[i] ~ dpois(expGroupSize[i])
-      log(expGroupSize[i]) <- int.gs + random.gs.line[detectionLine[i]] + random.gs.line.year[detectionLine[i],detectionYear[i]]
+      log(expGroupSize[i]) <- int.gs + random.gs.year[detectionYear[i]] + random.gs.line[detectionLine[i]] + 
+                              random.gs.site2[detectionSite[i]]+
+                              random.gs.line.year[detectionLine[i],detectionYear[i]] +
+                              random.gs.site2.year[detectionSite[i],detectionYear[i]]
     }
-
+    
     #using this model, get predicted group size for each line and year
     for(t in 1:n.Years){
       for(j in 1:n.Lines){
-        log(predGroupSize[j,t]) <- int.gs + random.gs.line[j] +random.gs.line.year[j,t]
+        log(predGroupSize[j,t]) <- int.gs + random.gs.year[t] + random.gs.line[j] + random.gs.site2[site2[j]]+
+                                    random.gs.line.year[j,t] + random.gs.site2.year[site2[j],t]
       }
     }
 
@@ -95,7 +116,7 @@ cat("
     line.d.sd ~ dunif(0,10)
     line.d.tau <- pow(line.d.sd,-2)
     for(j in 1:n.Lines){
-    random.d.line[j] ~ dnorm(0,line.d.tau)
+      random.d.line[j] ~ dnorm(0,line.d.tau)
     }
     
     #random site effect
@@ -110,31 +131,14 @@ cat("
     site2.d.tau <- pow(site2.d.sd,-2)
     for(j in 1:n.Sites2){
       random.d.site2[j] ~ dnorm(0,site2.d.tau)
-
-    }
-    
-    #random time effect
-    year.d.sd ~ dunif(0,10)
-    year.d.tau <- pow(year.d.sd,-2)
-    for(t in 1:(n.Years-1)){
-    random.d.year[t] ~ dnorm(0,year.d.tau)
     }
 
-    #random site and time effect
-    syear.d.sd ~ dunif(0,10)
-    syear.d.tau <- pow(syear.d.sd,-2)
-    for(j in 1:n.Sites){
-      for(t in 1:n.Years){
-        random.d.syear[j,t] ~ dnorm(0,syear.d.tau)
-      }
-    }
-
-    #random site2 and time effect
-    s2year.d.sd ~ dunif(0,10)
-    s2year.d.tau <- pow(s2year.d.sd,-2)
-    for(j in 1:n.Sites2){
-      for(t in 1:n.Years){
-        random.d.s2year[j,t] ~ dnorm(0,s2year.d.tau)
+    #random obs  
+    obs.d.sd ~ dunif(0,10)
+    obs.d.tau <- pow(obs.d.sd,-2)
+    for(j in 1:n.Lines){
+      for(t in 2:n.Years){
+        random.d.obs[j,t] ~ dnorm(0,obs.d.tau)
       }
     }
 
@@ -148,79 +152,40 @@ cat("
     #interaction
     beta.covariate_int ~ dnorm(0,0.001)
 
-    #Observation model:
-    for(j in 1:n.Lines){
-      for(t in 1:n.Years){
-        NuIndivs[j,t] ~ dpois(expNuIndivs[j,t])
-        expNuIndivs[j,t] <- predDensity[j,t] * (TransectLength[j,t]/1000 * predESW[j,t]/1000 * 2)
-        predDensity[j,t] ~ dpois(Density[j,t])  
-      }
-    }
 
-    #State model
-    for(j in 1:n.Lines){
-      for(t in 1:(n.Years-1)){
-      
-    #linear predictor on density
-        log(Density[j,t+1]) <- int.d +
-                            log(Density[j,t]) +
-                            beta.auto * log(Density[j,t]) 
-                            #random.d.line[j] + 
-                            #random.d.site2 [site2[j]]  
-                            #beta.covariateS * spatialMatrix1[j] + 
-                            #beta.covariateS2 * spatialMatrix1_2[j] + 
-                            #beta.covariateT * temporalMatrix1[j,t+1] +
-                            #beta.covariate_rodT * temporalMatrix2[j,t+1] +
-                            #beta.covariate_rodTL * temporalMatrix2[j,t] +
-                            #beta.covariate_int * spatialMatrix1[j] * temporalMatrix1[j,t+1] 
-      }}
+    #Observation model:
 
     #Priors on the first year of density
     for(j in 1:n.Lines){
+        NuIndivs[j,1] ~ dpois(expNuIndivs[j,1])
+        expNuIndivs[j,1] <- Density[j,1] * TransectLength[j,1]/1000 * (predESW[j,1]/1000) * 2
         Density[j,1] ~ dpois(priorDensity1[j])
     }
 
-    #model for missing data for rodent data
-    int.rs ~ dnorm(0,0.001)
-    int.rt ~ dnorm(0,0.001)
-    tau.rs <- pow(sd.rs,-2)
-    sd.rs ~ dunif(0,10)
-    tau.rt <- pow(sd.rt,-2)
-    sd.rt ~ dunif(0,10)
-    
+   #for remaining years
     for(j in 1:n.Lines){
-    spatialMatrix2[j] ~ dnorm(spatialMatrix2.pred[j],tau.rs)
-    spatialMatrix2.pred[j] <- int.rs +  random.r.site[site[j]]
-    for(t in 1:n.Years){
-    temporalMatrix2[j,t] ~ dnorm(temporalMatrix2.pred[j,t],tau.rt)
-    temporalMatrix2.pred[j,t] <- int.rt + random.r.year[t] + random.r.syear[site[j],t]
-    }
-    }
-    
-    #random site and time effect
-    syear.r.sd ~ dunif(0,10)
-    syear.r.tau <- pow(syear.r.sd,-2)
-    for(j in 1:n.Sites){
-    for(t in 1:n.Years){
-    random.r.syear[j,t] ~ dnorm(0,syear.r.tau)
-    }
-    }
-    
-    #random site effect
-    site.r.sd ~ dunif(0,10)
-    site.r.tau <- pow(site.r.sd,-2)
-    for(j in 1:n.Sites){
-    random.r.site[j] ~ dnorm(0,site.r.tau)
-    }
-    
-    #random time effect
-    year.r.sd ~ dunif(0,10)
-    year.r.tau <- pow(year.r.sd,-2)
-    for(t in 1:n.Years){
-    random.r.year[t] ~ dnorm(0,year.r.tau)
+      for(t in 2:n.Years){
+        NuIndivs[j,t] ~ dpois(expNuIndivs[j,t])
+        expNuIndivs[j,t] <- predDensity[j,t] * TransectLength[j,t]/1000 * (predESW[j,t]/1000) * 2
+        predDensity[j,t] ~ dpois(Density[j,t])  
+      
+    #linear predictor on density
+        log(Density[j,t]) <- int.d +
+                            log(Density[j,t-1]) +
+                            beta.auto * (log(Density[j,t-1])-1.75) +
+                            random.d.line[j] + 
+                            random.d.site2[site2[j]] + 
+                            random.d.obs[j,t] +
+                            beta.covariateS * spatialMatrix1[j] + 
+                            beta.covariateS2 * spatialMatrix1_2[j] + 
+                            beta.covariateT * temporalMatrix1[j,t] +
+                            beta.covariate_rodT * temporalMatrix2[j,t] +
+                            beta.covariate_rodTL * temporalMatrix2[j,t-1] +
+                            beta.covariate_int * spatialMatrix1[j] * temporalMatrix1[j,t] 
+      }
     }
 
-
+  
     #calculate the Bayesian p-value
     #e <- 0.0001
     #for(j in 1:n.Lines){
