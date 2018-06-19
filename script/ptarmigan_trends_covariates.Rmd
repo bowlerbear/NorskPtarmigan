@@ -40,6 +40,8 @@ allData$Kommunenavn[which(allData$Kommunenavn=="Dovre Fjellstyrene")]<-"Dovre"
 #Nordland__Indre Troms, Troms__Indre Troms 
 allData$Fylkesnavn[which(allData$Rapporteringsniva=="Indre Troms")]<-"Troms"
 
+#for tesing subset to Troms and Finnmark
+#allData<-subset(allData,Fylkesnavn%in%c("Troms","Finnmark"))
 
 #get number of individuals per line
 nuIndivs <-
@@ -91,10 +93,7 @@ save(siteInfo,file="siteInfo.RData")
 allDetections<-subset(allData,totalIndiv>0&!is.na(totalIndiv))
 #get indices of sites
 allDetections<-merge(siteInfo,allDetections[,-c(2:7)],by="Line",all.y=T)
-allDetections$detectionLineYear<-
-  as.numeric(factor(interaction(allDetections$LinjeID,allDetections$Year)))
-allDetections$detectionSiteYear<-
-  as.numeric(factor(interaction(allDetections$Rapporteringsniva,allDetections$Year)))
+allDetetections<-arrange(allDetections,Year,Rapporteringsniva,LinjeID)
 
 head(allDetections)
 

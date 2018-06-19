@@ -271,7 +271,7 @@ g<-plot_grid(g1, g2,labels = c("A", "B"))
 
 ```
 
-#model the probability to see a rodent
+#model the probability to see a rodent according to climate
 
 ```{r}
 
@@ -288,7 +288,8 @@ bugs.data$n.Preds<-length(bugs.data$climaticGradient)
 
 source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
 
-params <- c("int.r","line.r.sd","year.r.sd","site2.r.sd","year.site2.r.sd","beta.t","beta.s","preds")
+params <- c("int.r","line.r.sd","year.r.sd","site2.r.sd",
+            "year.site2.r.sd","beta.t","beta.s","preds")
 
 #inits <- function(){list(int.r)}
 
@@ -315,10 +316,55 @@ ggplot(predsDF)+
 
 ```
 
-Plot the predicted time series
+Model the predicted time series
 
 ```{r}
 
+#add rodent data P/A
+my.rodents <- acast(allData,Line~Year,value.var="SettSmagnager",fun=max,na.rm=T)
+my.rodents[is.infinite(my.rodents)]<-0
+my.rodents[transectLengths==0]<-NA
+all(row.names(my.n)==row.names(my.rodents))
+bugs.data$rodentData <- my.rodents
+
+source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
+
+params <- c("int.r","line.r.sd","year.r.sd","site2.r.sd","site.r.sd",
+"year.site2.r.sd","year.site.r.sd","rodentPresence")
+
+setwd("/data/home/diana.bowler/NorskPtarmigan/models")
+out1 <- jags(bugs.data, inits=NULL, params, "rodent_preds.txt", n.thin=nt,
+               n.chains=3, n.burnin=5000,n.iter=20000,parallel = T)
+
+print(out1,2)
+setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
+save(out1,file="out1_rodent_preds.RData")
+
+```
+
+Gets preds
+```{r}
+setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
+load("out1_rodent_preds.RData")
+
+preds<-getBUGSFits(out1,param="rodentPresence")
+
+ggplot(preds)+
+  geom_line(aes(x=Year,y=mean,colour=factor(Rapporteringsniva)))+
+  facet_wrap(~Fylkesnavn)  
+
+bugs.data$temporalMatrix2<-acast(preds,lineIndex~Year,value.var="mean")
+
+```
+
+get effective strip widths
+```{r}
+setwd("/data/home/diana.bowler/NorskPtarmigan/model_outputs")
+load("esw.RData")
+
+#add to the bugs data object
+bugs.data$ESW.mean <- acast(esw,lineIndex~Year,value.var="mean")
+bugs.data$ESW.sd <- acast(esw,lineIndex~Year,value.var="sd")
 
 ```
 
@@ -369,7 +415,7 @@ print(out1,2)
 source('/data/home/diana.bowler/NorskPtarmigan/script/bugsFunctions.R')
 
 #get prioirs for density
-priorDensity<-my.n*(transectLengths/1000)*(110/1000)
+priorDensity<-my.n*(transectLengths/1000)*(bugs.data$ESW.mean/1000)
 lineAverage<-apply(priorDensity,1,function(x)mean(x,na.rm=T))
 for(i in 1:nrow(priorDensity)){
   priorDensity[i,][is.na(priorDensity[i,])]<-lineAverage[i]
@@ -388,17 +434,16 @@ params <- c("int.d","beta.auto",
             "beta.covariateS","beta.covariateT","beta.covariateS2",
             "beta.covariate_int",
             "beta.covariate_rodT","beta.covariate_rodTL",
-            "obs.d.sd","site.d.sd","line.d.sd","site2.d.sd","year.d.sd",
-            "b.df.0","b.group.size",
-            "preds")
+            "obs.d.sd","line.d.sd","site2.d.sd")
 
 setwd("/data/home/diana.bowler/NorskPtarmigan/models")
 
 #specific initial values
 inits<- function(){
-  list(beta.auto=runif(1,0,1),int.d=runif(1,0,5))}
+  list(beta.auto=runif(1,0,1),int.d=runif(1,0.5,3))}
+
 #predDensity=bugs.data$priorDensity,
-out1 <- jags(bugs.data, inits=inits, params, "combined_model_weather_interaction_rodent_additive.txt", n.thin=nt,n.chains=3, n.burnin=30,n.iter=100,parallel = T)
+out1 <- jags(bugs.data, inits=inits, params, "weather_interaction_rodent_additive_esw.txt", n.thin=nt,n.chains=3, n.burnin=20000,n.iter=50000,parallel = T)
 
 print(out1,2)
 
